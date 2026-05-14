@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Group Planner</title>
+<style>
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    max-width:720px;margin:0 auto;padding:60px 24px;
+    background:#FBEAC5;color:#1A1A2E;line-height:1.55;
+  }
+  h1{font-size:48px;margin:0 0 8px;letter-spacing:-1px;font-weight:800;}
+  .tag{color:#5C6BC0;font-weight:600;margin-bottom:32px;font-size:18px;}
+  ul{padding:0;list-style:none;}
+  li{margin:14px 0;}
+  a.btn{
+    display:inline-block;padding:14px 22px;background:#5C6BC0;
+    color:white;text-decoration:none;border-radius:14px;
+    font-weight:700;font-size:15px;
+  }
+  a.btn:hover{background:#4a58a8;}
+  footer{margin-top:60px;color:#1A1A2Eaa;font-size:13px;}
+  .contact-link{color:#5C6BC0;font-weight:600;text-decoration:none;cursor:pointer;}
+  .contact-link:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+  <h1>Group Planner</h1>
+  <p class="tag">Find the best date for everyone.</p>
+  <p>Group Planner helps friends agree on a meetup date without endless group chats. Mark your availability, share an invite code, and let the app suggest the date that works for the most people.</p>
+  <h3 style="margin-top:40px;font-size:13px;text-transform:uppercase;letter-spacing:1px;color:#888;">Legal</h3>
+  <ul>
+    <li><a class="btn" href="privacy.html">Privacy Policy</a></li>
+    <li><a class="btn" href="terms.html">Terms of Service</a></li>
+  </ul>
+  <footer>
+    <p>Contact: <a class="contact-link" id="contact" href="#" onclick="return revealMail(this)">Click to email</a></p>
+    <p>© 2025 Group Planner</p>
+  </footer>
+
+<script>
+  // Email obfuscation — assembled at runtime so bots scraping static HTML miss it.
+  function revealMail(el){
+    const parts=["jakub.miklanek","gmail","com"];
+    const addr=parts[0]+"@"+parts[1]+"."+parts[2];
+    el.href="mailto:"+addr;
+    el.textContent=addr;
+    return true;
+  }
+</script>
+</body>
+</html>

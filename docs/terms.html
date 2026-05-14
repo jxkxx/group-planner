@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Service — Group Planner</title>
+<style>
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    max-width:720px;margin:0 auto;padding:60px 24px;
+    background:#FBEAC5;color:#1A1A2E;line-height:1.6;
+  }
+  h1{font-size:36px;margin:0 0 4px;letter-spacing:-0.5px;font-weight:800;}
+  .date{color:#1A1A2E80;font-size:14px;margin-bottom:32px;}
+  h2{font-size:20px;margin-top:32px;margin-bottom:10px;font-weight:700;}
+  p,li{font-size:16px;color:#1A1A2Edd;}
+  ul{padding-left:20px;}
+  li{margin:6px 0;}
+  a{color:#5C6BC0;font-weight:600;}
+  .back{display:inline-block;margin-bottom:24px;color:#5C6BC0;text-decoration:none;font-weight:600;}
+  .contact-link{cursor:pointer;}
+</style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back</a>
+  <h1>Terms of Service</h1>
+  <p class="date">Effective date: November 2025</p>
+
+  <p>By using Group Planner, you agree to these terms.</p>
+
+  <h2>Acceptable use</h2>
+  <p>You agree not to:</p>
+  <ul>
+    <li>Use the app for illegal activities</li>
+    <li>Harass or abuse other users</li>
+    <li>Attempt to access or modify other users' data without permission</li>
+    <li>Reverse engineer, decompile, or tamper with the app</li>
+  </ul>
+
+  <h2>Accounts</h2>
+  <p>You are responsible for keeping your account credentials secure. We reserve the right to suspend or terminate accounts that violate these terms.</p>
+
+  <h2>Service availability</h2>
+  <p>The app is provided "as is" without warranty. We do our best to keep it running but cannot guarantee uninterrupted service.</p>
+
+  <h2>Limitation of liability</h2>
+  <p>To the maximum extent permitted by law, Group Planner is not liable for any indirect, incidental, or consequential damages arising from your use of the app.</p>
+
+  <h2>Changes to these terms</h2>
+  <p>We may update these terms. Continued use of the app after changes means you accept the new terms.</p>
+
+  <h2>Governing law</h2>
+  <p>These terms are governed by the laws of <strong>Slovakia</strong>. Any disputes will be resolved in the courts of Slovakia.</p>
+
+  <h2>Contact</h2>
+  <p>For questions about these terms, contact:
+    <a class="contact-link" href="#" onclick="return revealMail(this)">click to email</a>
+  </p>
+
+<script>
+  function revealMail(el){
+    const parts=["jakub.miklanek","gmail","com"];
+    const addr=parts[0]+"@"+parts[1]+"."+parts[2];
+    el.href="mailto:"+addr;
+    el.textContent=addr;
+    return true;
+  }
+</script>
+</body>
+</html>

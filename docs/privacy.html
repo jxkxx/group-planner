@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Group Planner</title>
+<style>
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    max-width:720px;margin:0 auto;padding:60px 24px;
+    background:#FBEAC5;color:#1A1A2E;line-height:1.6;
+  }
+  h1{font-size:36px;margin:0 0 4px;letter-spacing:-0.5px;font-weight:800;}
+  .date{color:#1A1A2E80;font-size:14px;margin-bottom:32px;}
+  h2{font-size:20px;margin-top:32px;margin-bottom:10px;font-weight:700;}
+  p,li{font-size:16px;color:#1A1A2Edd;}
+  ul{padding-left:20px;}
+  li{margin:6px 0;}
+  a{color:#5C6BC0;font-weight:600;}
+  .back{display:inline-block;margin-bottom:24px;color:#5C6BC0;text-decoration:none;font-weight:600;}
+  .contact-link{cursor:pointer;}
+</style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back</a>
+  <h1>Privacy Policy</h1>
+  <p class="date">Effective date: November 2025</p>
+
+  <p>Group Planner ("we", "our", or "us") respects your privacy. This policy explains what data we collect and how we use it.</p>
+
+  <h2>What we collect</h2>
+  <p>When you use Group Planner, we collect:</p>
+  <ul>
+    <li><strong>Account info</strong> — email address, name, and profile photo (from your sign-in provider: Google, Apple, or email/password)</li>
+    <li><strong>Availability data</strong> — dates you mark as Available, Likely, Maybe, or Unavailable</li>
+    <li><strong>Group data</strong> — groups you create or join, group names, invite codes, member lists</li>
+    <li><strong>Preferences</strong> — chosen nickname, theme, first day of week</li>
+  </ul>
+
+  <h2>How we use your data</h2>
+  <p>Your data is used solely to provide the app's functionality:</p>
+  <ul>
+    <li>Showing your availability to other members of groups you're in</li>
+    <li>Finding optimal dates that work for your group</li>
+    <li>Maintaining your account and preferences</li>
+  </ul>
+  <p>We do <strong>NOT</strong> sell, rent, or share your data with advertisers or third parties.</p>
+
+  <h2>Where your data is stored</h2>
+  <p>All data is stored on Google Firebase (Firestore and Firebase Authentication), hosted on Google servers. Firebase may store data in the United States or European Union depending on the region.</p>
+
+  <h2>Your rights</h2>
+  <p>You can:</p>
+  <ul>
+    <li>View all your data within the app</li>
+    <li>Edit your profile, group membership, and availability at any time</li>
+    <li>Delete your account entirely via Profile → Delete account. This permanently removes all your data.</li>
+  </ul>
+
+  <h2>Children</h2>
+  <p>Group Planner is not intended for children under 13. We do not knowingly collect data from children.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>We may update this policy from time to time. The "Effective date" above shows the latest version.</p>
+
+  <h2>Contact</h2>
+  <p>For questions about this policy, contact:
+    <a class="contact-link" href="#" onclick="return revealMail(this)">click to email</a>
+  </p>
+
+<script>
+  function revealMail(el){
+    const parts=["jakub.miklanek","gmail","com"];
+    const addr=parts[0]+"@"+parts[1]+"."+parts[2];
+    el.href="mailto:"+addr;
+    el.textContent=addr;
+    return true;
+  }
+</script>
+</body>
+</html>
