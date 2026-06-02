@@ -8,6 +8,7 @@ import 'package:table_calendar/table_calendar.dart';
 import '../models/group_model.dart';
 import '../providers/groups_provider.dart';
 import '../providers/activity_provider.dart';
+import '../../availability/providers/availability_provider.dart';
 import '../../../core/theme_provider.dart';
 import 'edit_group_screen.dart';
 import 'group_details_screen.dart';
@@ -542,7 +543,132 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
   bool? _localShowUnavail;
   bool _lastSyncedUnavail = false;
 
+  // ── Multi-select state
+  bool _selectMode = false;
+  final Set<DateTime> _selected = {};
+
   DateTime _norm(DateTime d) => DateTime(d.year, d.month, d.day);
+  DateTime get _today => _norm(DateTime.now());
+
+  void _enterSelectMode() {
+    setState(() {
+      _selectMode = true;
+      _selected.clear();
+    });
+  }
+
+  void _exitSelectMode() {
+    setState(() {
+      _selectMode = false;
+      _selected.clear();
+    });
+  }
+
+  Future<void> _applyBulkStatus() async {
+    if (_selected.isEmpty) return;
+    final cs = Theme.of(context).colorScheme;
+
+    final result = await showModalBottomSheet<DateStatus>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        margin: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+            color: cs.surface, borderRadius: BorderRadius.circular(20)),
+        child: SafeArea(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: cs.onSurface.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 14),
+            Text('Apply to ${_selected.length} date${_selected.length == 1 ? '' : 's'}',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface)),
+            const SizedBox(height: 8),
+            ...DateStatus.values.where((s) => s != DateStatus.none).map((s) {
+              final c = _statusToColor(s);
+              return ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: c.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(_statusToIcon(s), color: c, size: 20),
+                ),
+                title: Text(s.label,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600, color: cs.onSurface)),
+                onTap: () => Navigator.pop(context, s),
+              );
+            }),
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: cs.onSurface.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.delete_outline,
+                    color: cs.onSurface.withValues(alpha: 0.5), size: 20),
+              ),
+              title: Text('Reset (use profile)',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface.withValues(alpha: 0.6))),
+              onTap: () => Navigator.pop(context, DateStatus.none),
+            ),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    final notifier = ref.read(groupsNotifierProvider.notifier);
+    try {
+      for (final d in _selected) {
+        await notifier.setMyOverrideInGroup(
+            widget.group.id, d, result == DateStatus.none ? 'none' : result.name);
+      }
+      if (mounted) _exitSelectMode();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not save: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ));
+      }
+    }
+  }
+
+  Color _statusToColor(DateStatus s) => switch (s) {
+        DateStatus.available => const Color(0xFF26A69A),
+        DateStatus.likely => const Color(0xFF66BB6A),
+        DateStatus.maybe => const Color(0xFFFFB74D),
+        DateStatus.unavailable => const Color(0xFFEF5350),
+        DateStatus.none => Colors.transparent,
+      };
+
+  IconData _statusToIcon(DateStatus s) => switch (s) {
+        DateStatus.available => Icons.check_circle_outline,
+        DateStatus.likely => Icons.thumb_up_outlined,
+        DateStatus.maybe => Icons.help_outline,
+        DateStatus.unavailable => Icons.cancel_outlined,
+        DateStatus.none => Icons.circle_outlined,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -577,6 +703,68 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
           const SizedBox(height: 14),
         ],
 
+        // Select-mode header (only when active)
+        if (_selectMode) ...[
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: cs.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(children: [
+              Icon(Icons.checklist_rounded, color: cs.primary, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                    '${_selected.length} date${_selected.length == 1 ? '' : 's'} selected',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: cs.primary)),
+              ),
+              TextButton(
+                onPressed: _exitSelectMode,
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text('Cancel',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface.withValues(alpha: 0.6))),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        // Select button (only when NOT in select mode)
+        if (!_selectMode) ...[
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _enterSelectMode,
+              icon: Icon(Icons.checklist_rounded,
+                  color: cs.primary, size: 18),
+              label: Text('Select dates',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: cs.primary)),
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ],
+
         // Calendar
         _SectionCard(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -588,7 +776,19 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
             focusedDay: _clampFocused(_focusedDay),
             onDaySelected: (selected, focused) {
               setState(() => _focusedDay = focused);
-              _openDayDetail(selected);
+              if (_selectMode) {
+                final normed = _norm(selected);
+                if (normed.isBefore(_today)) return;
+                setState(() {
+                  if (_selected.contains(normed)) {
+                    _selected.remove(normed);
+                  } else {
+                    _selected.add(normed);
+                  }
+                });
+              } else {
+                _openDayDetail(selected);
+              }
             },
             startingDayOfWeek: widget.startDay,
             selectedDayPredicate: (_) => false,
@@ -630,6 +830,29 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
         ),
 
         const SizedBox(height: 10),
+
+        // Apply button in select mode
+        if (_selectMode) ...[
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _selected.isEmpty ? null : _applyBulkStatus,
+              style: FilledButton.styleFrom(
+                backgroundColor: cs.primary,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              child: Text(
+                  _selected.isEmpty
+                      ? 'Select dates to apply'
+                      : 'Apply to ${_selected.length} date${_selected.length == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
 
         // Show all votes toggle
         _SectionCard(
@@ -789,6 +1012,8 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
       }
     }
 
+    final isSelected = _selectMode && _selected.contains(normed);
+
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -811,6 +1036,14 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
                     fontSize: 13)),
           ),
         ),
+        if (isSelected)
+          Container(
+            width: 38, height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: cs.primary, width: 2.5),
+            ),
+          ),
         if (hasUnavail && !_showAllVotes)
           Positioned(
             right: 2, bottom: 2,
