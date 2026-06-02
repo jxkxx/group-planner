@@ -40,10 +40,15 @@ dependencies:
   flutter_riverpod: ^3.3.1
   google_sign_in: ^6.2.0
   sign_in_with_apple: ^6.0.0
+  table_calendar: ^3.1.2
+  shared_preferences: ^2.3.0
+  share_plus: ^10.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.6
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -93,3 +98,27 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# ─── App icon generation ─────────────────────────────────────────────────────
+# Run: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/app_icon.png"
+  ios: true
+  android: true
+  remove_alpha_ios: true
+  background_color_ios: "#FBEAC5"
+
+# ─── Launch screen (splash) ──────────────────────────────────────────────────
+# Run: dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#FBEAC5"
+  image: assets/app_icon.png
+  color_dark: "#000000"
+  image_dark: assets/app_icon.png
+  android_12:
+    image: assets/app_icon.png
+    color: "#FBEAC5"
+    image_dark: assets/app_icon.png
+    color_dark: "#000000"
+  ios: true
+  android: true
