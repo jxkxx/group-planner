@@ -61,6 +61,61 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
   DateTime _norm(DateTime d) => DateTime(d.year, d.month, d.day);
   DateTime get _today => _norm(DateTime.now());
 
+  @override
+  void initState() {
+    super.initState();
+    // Show first-time Select-feature tutorial after first frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final seen = ref.read(selectTutorialSeenProvider);
+      if (!seen && mounted) {
+        _showSelectTutorial();
+      }
+    });
+  }
+
+  Future<void> _showSelectTutorial() async {
+    final cs = Theme.of(context).colorScheme;
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => AlertDialog(
+        backgroundColor: cs.surface,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
+          Icon(Icons.checklist_rounded, color: cs.primary, size: 24),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('Mark many dates at once',
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface)),
+          ),
+        ]),
+        content: Text(
+          'Tap "Select" in the top right to switch into multi-select mode. '
+          'Then tap multiple dates and apply a status to all of them at once.\n\n'
+          "Tip: Group calendars have the same feature.",
+          style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: cs.onSurface.withValues(alpha: 0.8)),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              ref.read(selectTutorialSeenProvider.notifier).markSeen();
+              Navigator.pop(context);
+            },
+            style: FilledButton.styleFrom(backgroundColor: cs.primary),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _enterSelectMode() {
     setState(() {
       _selectMode = true;

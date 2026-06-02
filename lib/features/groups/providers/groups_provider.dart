@@ -226,6 +226,44 @@ class GroupsNotifier extends AsyncNotifier<void> {
     });
   }
 
+  /// Toggle the current user's confirmation for a date in a group.
+  /// If user is already in confirmations[date] → removes them.
+  /// Otherwise → adds them.
+  Future<void> toggleConfirmation(String groupId, DateTime date) async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final dateStr =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final ref =
+        FirebaseFirestore.instance.collection('groups').doc(groupId);
+    final snap = await ref.get();
+    final data = snap.data() ?? {};
+    final raw = (data['confirmations'] as Map?) ?? {};
+    final current = List<String>.from((raw[dateStr] as List?) ?? []);
+    if (current.contains(uid)) {
+      await ref.update({
+        'confirmations.$dateStr': FieldValue.arrayRemove([uid]),
+      });
+      await ref.collection('activity').add({
+        'uid': uid,
+        'action': 'unconfirmed',
+        'date': dateStr,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } else {
+      await ref.set({
+        'confirmations': {
+          dateStr: FieldValue.arrayUnion([uid]),
+        }
+      }, SetOptions(merge: true));
+      await ref.collection('activity').add({
+        'uid': uid,
+        'action': 'confirmed',
+        'date': dateStr,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
   Future<void> deleteGroup(String groupId) async {
     // Delete activity subcollection first
     final activitySnap = await FirebaseFirestore.instance

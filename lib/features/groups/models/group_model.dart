@@ -19,6 +19,10 @@ class GroupModel {
   // Per-group name override: uid -> display name
   final Map<String, String> memberNames;
 
+  /// Date confirmations: { 'yyyy-mm-dd': [uid1, uid2, ...] }
+  /// When all member UIDs are present for a date, the group has consensus.
+  final Map<String, List<String>> confirmations;
+
   const GroupModel({
     required this.id,
     required this.name,
@@ -33,6 +37,7 @@ class GroupModel {
     this.windowStart,
     this.windowEnd,
     this.memberNames = const {},
+    this.confirmations = const {},
   });
 
   factory GroupModel.fromDoc(DocumentSnapshot doc) {
@@ -52,6 +57,9 @@ class GroupModel {
       windowEnd: (data['windowEnd'] as Timestamp?)?.toDate(),
       memberNames: Map<String, String>.from(
           (data['memberNames'] as Map?) ?? {}),
+      confirmations: ((data['confirmations'] as Map?) ?? {}).map(
+        (k, v) => MapEntry(k as String, List<String>.from(v as List)),
+      ),
     );
   }
 

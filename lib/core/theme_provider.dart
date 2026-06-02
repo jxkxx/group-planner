@@ -5,6 +5,7 @@ import 'package:table_calendar/table_calendar.dart';
 
 const _kThemeKey = 'theme_mode';
 const _kStartDayKey = 'start_day_of_week';
+const _kSelectTutorialKey = 'select_tutorial_seen';
 
 // ─── Theme mode ───────────────────────────────────────────────────────────────
 
@@ -83,3 +84,25 @@ final startingDayOfWeekProvider = Provider<StartingDayOfWeek>((ref) {
   final index = ref.watch(startDayProvider);
   return _kDayToStarting[index];
 });
+
+// ─── Select tutorial seen ─────────────────────────────────────────────────────
+
+class SelectTutorialNotifier extends Notifier<bool> {
+  @override
+  bool build() => true; // assume seen until loaded
+
+  Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(_kSelectTutorialKey) ?? false;
+  }
+
+  Future<void> markSeen() async {
+    state = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kSelectTutorialKey, true);
+  }
+}
+
+final selectTutorialSeenProvider =
+    NotifierProvider<SelectTutorialNotifier, bool>(
+        SelectTutorialNotifier.new);

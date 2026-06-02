@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../models/group_model.dart';
 import '../providers/groups_provider.dart';
@@ -951,6 +952,11 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
               scoreMap: scoreMap,
               total: total,
               tripLength: tripLen),
+          const SizedBox(height: 10),
+          _ConfirmationRow(
+              group: widget.group,
+              range: optimalRange,
+              members: widget.members),
         ],
       ],
     );
@@ -2037,6 +2043,24 @@ class _DayDetailSheet extends ConsumerWidget {
 
   Future<void> _setOverride(BuildContext context, WidgetRef ref,
       MemberData me, String status) async {
+    // ─── Personal-calendar conflict check ───────────────────────
+    // If I'm trying to mark group Available/Likely/Maybe on a date my personal
+    // calendar says I'm Unavailable, warn before proceeding.
+    if (status == 'available' ||
+        status == 'likely' ||
+        status == 'maybe') {
+      final personalData = ref.read(availabilityDataProvider).value;
+      if (personalData != null) {
+        final personalStatus = personalData.personalStatusOf(date);
+        if (personalStatus == PersonalDateStatus.unavailable ||
+            personalStatus == PersonalDateStatus.maybeUnavailable) {
+          final confirmed = await _showPersonalConflictWarning(
+              context, personalStatus, status);
+          if (!confirmed) return;
+        }
+      }
+    }
+
     final myGlobal = me.globalStatus[date];
     if (myGlobal != null && myGlobal != status && status != "none") {
       final confirmed = await _showWarning(context, myGlobal, status);
@@ -2057,6 +2081,49 @@ class _DayDetailSheet extends ConsumerWidget {
             margin: const EdgeInsets.all(16)));
       }
     }
+  }
+
+  Future<bool> _showPersonalConflictWarning(BuildContext context,
+      PersonalDateStatus personalStatus, String groupStatus) async {
+    final cs = Theme.of(context).colorScheme;
+    final personalLabel = personalStatus == PersonalDateStatus.unavailable
+        ? 'Unavailable'
+        : 'Maybe Unavailable';
+    final groupLabel = _statusInfo(groupStatus).label;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: cs.surface,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
+          Icon(Icons.warning_amber_rounded,
+              color: AppColors.danger, size: 22),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text("Personal calendar conflict",
+                style: TextStyle(
+                    fontWeight: FontWeight.w700, color: cs.onSurface)),
+          ),
+        ]),
+        content: Text(
+          "You marked this date as '$personalLabel' in your personal calendar. "
+          "Setting it to '$groupLabel' here will only apply to this group — "
+          "your personal calendar stays as is.",
+          style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text("Cancel", style: TextStyle(color: cs.primary))),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(backgroundColor: cs.primary),
+              child: const Text("Continue")),
+        ],
+      ),
+    );
+    return result == true;
   }
 
   Future<bool> _showWarning(
@@ -2364,3 +2431,284 @@ class _DayDetailSheet extends ConsumerWidget {
   }
 }
 
+
+// ─── Confirmation row ────────────────────────────────────────────────────────
+
+class _ConfirmationRow extends ConsumerStatefulWidget {
+  const _ConfirmationRow({
+    required this.group,
+    required this.range,
+    required this.members,
+  });
+
+  final GroupModel group;
+  final List<DateTime> range;
+  final List<MemberData> members;
+
+  @override
+  ConsumerState<_ConfirmationRow> createState() => _ConfirmationRowState();
+}
+
+class _ConfirmationRowState extends ConsumerState<_ConfirmationRow> {
+  bool _saving = false;
+
+  String _fmtDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Color _avatarColor(String key) {
+    if (key.isEmpty) return AppColors.brandPrimary;
+    return AppColors
+        .avatarPalette[key.codeUnitAt(0) % AppColors.avatarPalette.length];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    final firstDate = widget.range.first;
+    final dateKey = _fmtDate(firstDate);
+    final confirmedUids =
+        widget.group.confirmations[dateKey] ?? const <String>[];
+    final myConfirmed = myUid != null && confirmedUids.contains(myUid);
+    final memberCount = widget.members.length;
+    final confirmedCount = confirmedUids.length;
+    final allConfirmed =
+        memberCount > 0 && confirmedCount >= memberCount;
+
+    // Once everyone confirmed, prompt current user to block in personal calendar.
+    if (allConfirmed && myConfirmed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _maybePromptPersonalBlock(dateKey, firstDate);
+      });
+    }
+
+    final accent = allConfirmed
+        ? AppColors.available
+        : AppColors.brandPrimary;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: allConfirmed
+              ? AppColors.available.withValues(alpha: 0.4)
+              : Colors.transparent,
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(
+              allConfirmed ? Icons.verified : Icons.how_to_vote_outlined,
+              color: accent,
+              size: 18,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                allConfirmed
+                    ? 'All members confirmed'
+                    : 'Confirm this date',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface),
+              ),
+            ),
+            Text(
+              '$confirmedCount/$memberCount',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: accent),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          if (confirmedUids.isNotEmpty)
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: confirmedUids.map((uid) {
+                final m = widget.members.firstWhere(
+                  (m) => m.uid == uid,
+                  orElse: () => MemberData(
+                      uid: uid,
+                      name: '?',
+                      available: {},
+                      likely: {},
+                      maybe: {},
+                      unavailable: {}),
+                );
+                final c = _avatarColor(m.name);
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: c.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Container(
+                      width: 18, height: 18,
+                      decoration: BoxDecoration(
+                        color: c,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                          m.name.isNotEmpty ? m.name[0].toUpperCase() : '?',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 10)),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(m.name,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: c)),
+                  ]),
+                );
+              }).toList(),
+            ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _saving ? null : _toggle,
+              style: FilledButton.styleFrom(
+                backgroundColor: myConfirmed
+                    ? cs.onSurface.withValues(alpha: 0.06)
+                    : accent,
+                foregroundColor: myConfirmed
+                    ? cs.onSurface.withValues(alpha: 0.7)
+                    : Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(
+                      myConfirmed ? 'Remove my confirmation' : 'Confirm',
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          if (allConfirmed) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Heads up: dates can still be changed if plans shift.',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: cs.onSurface.withValues(alpha: 0.5)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggle() async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(groupsNotifierProvider.notifier)
+          .toggleConfirmation(widget.group.id, widget.range.first);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not confirm: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _maybePromptPersonalBlock(
+      String dateKey, DateTime firstDate) async {
+    // Prompt only once per group×date using shared_preferences.
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'gp_promoted_${widget.group.id}_$dateKey';
+    if (prefs.getBool(key) == true) return;
+    await prefs.setBool(key, true);
+    if (!mounted) return;
+
+    final cs = Theme.of(context).colorScheme;
+    final isMulti = widget.range.length > 1;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: cs.surface,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
+          Icon(Icons.verified, color: AppColors.available, size: 22),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('Block in personal calendar?',
+                style: TextStyle(
+                    fontWeight: FontWeight.w700, color: cs.onSurface)),
+          ),
+        ]),
+        content: Text(
+          isMulti
+              ? "Everyone confirmed ${widget.range.length} dates for this trip. "
+                  "Mark them as Unavailable in your personal calendar so other groups know you're busy?"
+              : "Everyone confirmed this date. Mark it as Unavailable in your personal calendar so other groups know you're busy?",
+          style: TextStyle(color: cs.onSurface.withValues(alpha: 0.8)),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text("Not now",
+                  style: TextStyle(color: cs.primary))),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.available),
+              child: const Text('Block in personal',
+                  style: TextStyle(fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+
+    if (result == true && mounted) {
+      final notifier = ref.read(availabilityNotifierProvider.notifier);
+      try {
+        for (final d in widget.range) {
+          await notifier.setPersonalStatus(d, PersonalDateStatus.unavailable);
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Blocked ${widget.range.length} date${widget.range.length == 1 ? '' : 's'} in your personal calendar'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Could not block: $e'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ));
+        }
+      }
+    }
+  }
+}

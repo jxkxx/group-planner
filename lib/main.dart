@@ -25,6 +25,7 @@ void main() async {
     container.read(themeModeProvider.notifier).load(),
     container.read(startDayProvider.notifier).load(),
     container.read(onboardingSeenProvider.notifier).load(),
+    container.read(selectTutorialSeenProvider.notifier).load(),
   ]);
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
