@@ -5,8 +5,9 @@ import '../providers/availability_provider.dart';
 import '../../../core/theme_provider.dart';
 import '../../../core/design_tokens.dart';
 
-// ─── Status colors ────────────────────────────────────────────────────────────
+// ─── Status colors / icons ───────────────────────────────────────────────────
 
+/// Group-level status colors (kept for use by group screens).
 Color statusColor(DateStatus s) => switch (s) {
       DateStatus.available => AppColors.available,
       DateStatus.likely => AppColors.likely,
@@ -21,6 +22,25 @@ IconData statusIcon(DateStatus s) => switch (s) {
       DateStatus.maybe => Icons.help_outline,
       DateStatus.unavailable => Icons.cancel_outlined,
       DateStatus.none => Icons.circle_outlined,
+    };
+
+/// Personal calendar status colors (only 2 active statuses).
+Color personalStatusColor(PersonalDateStatus s) => switch (s) {
+      PersonalDateStatus.unavailable => AppColors.danger,
+      PersonalDateStatus.maybeUnavailable => AppColors.maybe,
+      PersonalDateStatus.none => Colors.transparent,
+    };
+
+IconData personalStatusIcon(PersonalDateStatus s) => switch (s) {
+      PersonalDateStatus.unavailable => Icons.cancel_outlined,
+      PersonalDateStatus.maybeUnavailable => Icons.help_outline,
+      PersonalDateStatus.none => Icons.circle_outlined,
+    };
+
+String personalStatusBlurb(PersonalDateStatus s) => switch (s) {
+      PersonalDateStatus.unavailable => "I can't make it",
+      PersonalDateStatus.maybeUnavailable => "I probably can't make it",
+      PersonalDateStatus.none => '',
     };
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
@@ -59,7 +79,6 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
     if (day.isBefore(_today)) return;
     final normed = _norm(day);
 
-    // In select mode, toggle the date in/out of the selection
     if (_selectMode) {
       setState(() {
         if (_selected.contains(normed)) {
@@ -71,9 +90,8 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
       return;
     }
 
-    // Normal mode: show status picker
-    final current = data.statusOf(normed);
-    final result = await showModalBottomSheet<DateStatus>(
+    final current = data.personalStatusOf(normed);
+    final result = await showModalBottomSheet<PersonalDateStatus>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _StatusPickerSheet(day: normed, current: current),
@@ -83,7 +101,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
       try {
         await ref
             .read(availabilityNotifierProvider.notifier)
-            .setDateStatus(normed, result);
+            .setPersonalStatus(normed, result);
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -100,7 +118,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
 
   Future<void> _applyBulkStatus() async {
     if (_selected.isEmpty) return;
-    final result = await showModalBottomSheet<DateStatus>(
+    final result = await showModalBottomSheet<PersonalDateStatus>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _BulkStatusPickerSheet(count: _selected.length),
@@ -110,7 +128,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
     final notifier = ref.read(availabilityNotifierProvider.notifier);
     try {
       for (final d in _selected) {
-        await notifier.setDateStatus(d, result);
+        await notifier.setPersonalStatus(d, result);
       }
       if (mounted) _exitSelectMode();
     } catch (e) {
@@ -133,9 +151,22 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectMode
-            ? '${_selected.length} selected'
-            : 'My Availability'),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_selectMode
+                ? '${_selected.length} selected'
+                : 'My Availability'),
+            if (!_selectMode)
+              Text("Mark when you can't travel",
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: cs.onSurface.withValues(alpha: 0.6),
+                      letterSpacing: 0)),
+          ],
+        ),
         centerTitle: false,
         leading: _selectMode
             ? IconButton(
@@ -197,10 +228,8 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: TableCalendar(
-                  firstDay:
-                      DateTime.now().subtract(const Duration(days: 1)),
-                  lastDay:
-                      DateTime.now().add(const Duration(days: 365)),
+                  firstDay: DateTime.now().subtract(const Duration(days: 1)),
+                  lastDay: DateTime.now().add(const Duration(days: 365)),
                   focusedDay: _focusedDay,
                   startingDayOfWeek: startDay,
                   selectedDayPredicate: (_) => false,
@@ -208,11 +237,9 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
                     setState(() => _focusedDay = focused);
                     _onDayTapped(selected, data);
                   },
-                  onPageChanged: (f) =>
-                      setState(() => _focusedDay = f),
+                  onPageChanged: (f) => setState(() => _focusedDay = f),
                   calendarBuilders: CalendarBuilders(
-                    defaultBuilder: (ctx, day, _) =>
-                        _dayCell(day, data, cs),
+                    defaultBuilder: (ctx, day, _) => _dayCell(day, data, cs),
                     todayBuilder: (ctx, day, _) =>
                         _dayCell(day, data, cs, isToday: true),
                     outsideBuilder: (ctx, day, _) => Center(
@@ -250,16 +277,16 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
 
               // ── Legend ──────────────────────────────────────────
               Padding(
-                padding:
-                    const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                 child: Wrap(
                   spacing: 14,
                   runSpacing: 6,
-                  children: DateStatus.values
-                      .where((s) => s != DateStatus.none)
-                      .map((s) => _LegendDot(
-                          color: statusColor(s), label: s.label))
-                      .toList(),
+                  children: [
+                    _LegendDot(
+                        color: AppColors.danger, label: 'Unavailable'),
+                    _LegendDot(
+                        color: AppColors.maybe, label: 'Maybe unavailable'),
+                  ],
                 ),
               ),
 
@@ -284,9 +311,9 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
       {bool isToday = false}) {
     final normed = _norm(day);
     final isPast = normed.isBefore(_today);
-    final status = data.statusOf(normed);
-    final hasStatus = status != DateStatus.none;
-    final color = statusColor(status);
+    final status = data.personalStatusOf(normed);
+    final hasStatus = status != PersonalDateStatus.none;
+    final color = personalStatusColor(status);
 
     Color textColor;
     if (isPast) {
@@ -342,10 +369,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
   }
 
   Widget _buildDetailsHeader(AvailabilityData data, ColorScheme cs) {
-    final count = data.available.length +
-        data.likely.length +
-        data.maybe.length +
-        data.unavailable.length;
+    final count = data.unavailable.length + data.maybeUnavailable.length;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -393,12 +417,13 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
   }
 
   Widget _buildGroupedList(AvailabilityData data, ColorScheme cs) {
-    // Collect all marked dates
-    final all = <DateTime, DateStatus>{};
-    for (final d in data.available) all[d] = DateStatus.available;
-    for (final d in data.likely) all[d] = DateStatus.likely;
-    for (final d in data.maybe) all[d] = DateStatus.maybe;
-    for (final d in data.unavailable) all[d] = DateStatus.unavailable;
+    final all = <DateTime, PersonalDateStatus>{};
+    for (final d in data.unavailable) {
+      all[d] = PersonalDateStatus.unavailable;
+    }
+    for (final d in data.maybeUnavailable) {
+      all[d] = PersonalDateStatus.maybeUnavailable;
+    }
 
     if (all.isEmpty) {
       return Padding(
@@ -415,7 +440,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Tap any date to set your availability.',
+                "Tap a date to mark when you can't make it.",
                 style: TextStyle(
                     color: cs.onSurface.withValues(alpha: 0.5),
                     fontSize: 14,
@@ -442,7 +467,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
             final i = entry.key;
             final group = entry.value;
             final isLast = i == groups.length - 1;
-            final color = statusColor(group.status);
+            final color = personalStatusColor(group.status);
 
             return Column(children: [
               Padding(
@@ -455,7 +480,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
                       color: color.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(statusIcon(group.status),
+                    child: Icon(personalStatusIcon(group.status),
                         color: color, size: 22),
                   ),
                   const SizedBox(width: 14),
@@ -504,8 +529,6 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
     );
   }
 
-  // ── Booking.com-style calendar editor ─────────────────────────────────────
-
   Future<void> _openCalendarEditor(
       BuildContext context, _DateGroup group, AvailabilityData data) async {
     await showModalBottomSheet(
@@ -519,25 +542,21 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
         onApply: (selectedDates, status) async {
           final notifier =
               ref.read(availabilityNotifierProvider.notifier);
-          // Remove old dates that were deselected
           for (final d in group.dates) {
             if (!selectedDates.contains(d)) {
-              await notifier.setDateStatus(d, DateStatus.none);
+              await notifier.setPersonalStatus(d, PersonalDateStatus.none);
             }
           }
-          // Set all selected dates to chosen status
           for (final d in selectedDates) {
-            await notifier.setDateStatus(d, status);
+            await notifier.setPersonalStatus(d, status);
           }
         },
       ),
     );
   }
 
-  // ── Grouping helpers ───────────────────────────────────────────────────────
-
   List<_DateGroup> _buildGroups(
-      List<DateTime> sorted, Map<DateTime, DateStatus> statusMap) {
+      List<DateTime> sorted, Map<DateTime, PersonalDateStatus> statusMap) {
     final groups = <_DateGroup>[];
     if (sorted.isEmpty) return groups;
 
@@ -598,12 +617,12 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
   }
 }
 
-// ─── Status picker sheet (tap on calendar day) ───────────────────────────────
+// ─── Tap-on-day status picker ────────────────────────────────────────────────
 
 class _StatusPickerSheet extends StatelessWidget {
   const _StatusPickerSheet({required this.day, required this.current});
   final DateTime day;
-  final DateStatus current;
+  final PersonalDateStatus current;
 
   @override
   Widget build(BuildContext context) {
@@ -631,36 +650,39 @@ class _StatusPickerSheet extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: cs.onSurface)),
           const SizedBox(height: 4),
-          Text('How available are you?',
+          Text("Can you travel that day?",
               style: TextStyle(
                   fontSize: 13,
                   color: cs.onSurface.withValues(alpha: 0.5))),
           const SizedBox(height: 8),
-          ...DateStatus.values
-              .where((s) => s != DateStatus.none)
-              .map((s) => _StatusOption(
-                    status: s,
-                    isSelected: current == s,
-                    onTap: () => Navigator.pop(context, s),
-                  )),
-          if (current != DateStatus.none)
+          _PersonalStatusOption(
+            status: PersonalDateStatus.unavailable,
+            isSelected: current == PersonalDateStatus.unavailable,
+            onTap: () => Navigator.pop(context, PersonalDateStatus.unavailable),
+          ),
+          _PersonalStatusOption(
+            status: PersonalDateStatus.maybeUnavailable,
+            isSelected: current == PersonalDateStatus.maybeUnavailable,
+            onTap: () =>
+                Navigator.pop(context, PersonalDateStatus.maybeUnavailable),
+          ),
+          if (current != PersonalDateStatus.none)
             ListTile(
               leading: Container(
                 width: 40, height: 40,
                 decoration: BoxDecoration(
-                  color:
-                      cs.onSurface.withValues(alpha: 0.07),
+                  color: cs.onSurface.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(Icons.delete_outline,
                     color: cs.onSurface.withValues(alpha: 0.5),
                     size: 20),
               ),
-              title: Text('Remove',
+              title: Text("Remove (I'm available)",
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: cs.onSurface.withValues(alpha: 0.6))),
-              onTap: () => Navigator.pop(context, DateStatus.none),
+              onTap: () => Navigator.pop(context, PersonalDateStatus.none),
             ),
           const SizedBox(height: 8),
         ]),
@@ -681,19 +703,19 @@ class _StatusPickerSheet extends StatelessWidget {
   }
 }
 
-class _StatusOption extends StatelessWidget {
-  const _StatusOption({
+class _PersonalStatusOption extends StatelessWidget {
+  const _PersonalStatusOption({
     required this.status,
     required this.isSelected,
     required this.onTap,
   });
-  final DateStatus status;
+  final PersonalDateStatus status;
   final bool isSelected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = statusColor(status);
+    final color = personalStatusColor(status);
     final cs = Theme.of(context).colorScheme;
     return ListTile(
       leading: Container(
@@ -702,12 +724,12 @@ class _StatusOption extends StatelessWidget {
           color: color.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(statusIcon(status), color: color, size: 20),
+        child: Icon(personalStatusIcon(status), color: color, size: 20),
       ),
       title: Text(status.label,
           style: TextStyle(
               fontWeight: FontWeight.w600, color: cs.onSurface)),
-      subtitle: Text(_subtitle(status),
+      subtitle: Text(personalStatusBlurb(status),
           style: TextStyle(
               fontSize: 12,
               color: cs.onSurface.withValues(alpha: 0.45))),
@@ -717,17 +739,9 @@ class _StatusOption extends StatelessWidget {
       onTap: onTap,
     );
   }
-
-  String _subtitle(DateStatus s) => switch (s) {
-        DateStatus.available => 'Yes, I can make it',
-        DateStatus.likely => 'Probably yes, leaning towards yes',
-        DateStatus.maybe => 'Not sure yet, waiting to confirm',
-        DateStatus.unavailable => "No, I can't make it",
-        DateStatus.none => '',
-      };
 }
 
-// ─── Booking.com-style calendar editor ───────────────────────────────────────
+// ─── Booking.com-style edit sheet for a date group ───────────────────────────
 
 class _CalendarEditorSheet extends ConsumerStatefulWidget {
   const _CalendarEditorSheet({
@@ -738,9 +752,10 @@ class _CalendarEditorSheet extends ConsumerStatefulWidget {
   });
 
   final Set<DateTime> initialDates;
-  final DateStatus initialStatus;
+  final PersonalDateStatus initialStatus;
   final AvailabilityData allData;
-  final Future<void> Function(Set<DateTime> dates, DateStatus status) onApply;
+  final Future<void> Function(
+      Set<DateTime> dates, PersonalDateStatus status) onApply;
 
   @override
   ConsumerState<_CalendarEditorSheet> createState() =>
@@ -750,7 +765,7 @@ class _CalendarEditorSheet extends ConsumerStatefulWidget {
 class _CalendarEditorSheetState
     extends ConsumerState<_CalendarEditorSheet> {
   late Set<DateTime> _selected;
-  late DateStatus _status;
+  late PersonalDateStatus _status;
   DateTime _focusedDay = DateTime.now();
   bool _saving = false;
 
@@ -793,7 +808,7 @@ class _CalendarEditorSheetState
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final startDay = ref.watch(startingDayOfWeekProvider);
-    final selColor = statusColor(_status);
+    final selColor = personalStatusColor(_status);
 
     return Container(
       margin: const EdgeInsets.only(top: 60),
@@ -804,7 +819,6 @@ class _CalendarEditorSheetState
       ),
       child: SafeArea(
         child: Column(children: [
-          // Handle
           const SizedBox(height: 8),
           Container(
             width: 40, height: 4,
@@ -815,7 +829,6 @@ class _CalendarEditorSheetState
           ),
           const SizedBox(height: 14),
 
-          // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(children: [
@@ -836,17 +849,18 @@ class _CalendarEditorSheetState
 
           const SizedBox(height: 12),
 
-          // Status chips
+          // Status chips (2 options)
           SizedBox(
             height: 38,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: DateStatus.values
-                  .where((s) => s != DateStatus.none)
-                  .map((s) {
+              children: [
+                PersonalDateStatus.unavailable,
+                PersonalDateStatus.maybeUnavailable,
+              ].map((s) {
                 final isSelected = _status == s;
-                final c = statusColor(s);
+                final c = personalStatusColor(s);
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: GestureDetector(
@@ -856,27 +870,22 @@ class _CalendarEditorSheetState
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? c
-                            : c.withValues(alpha: 0.12),
+                        color:
+                            isSelected ? c : c.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(statusIcon(s),
+                          Icon(personalStatusIcon(s),
                               size: 14,
-                              color: isSelected
-                                  ? Colors.white
-                                  : c),
+                              color: isSelected ? Colors.white : c),
                           const SizedBox(width: 5),
                           Text(s.label,
                               style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : c)),
+                                  color: isSelected ? Colors.white : c)),
                         ],
                       ),
                     ),
@@ -888,7 +897,6 @@ class _CalendarEditorSheetState
 
           const SizedBox(height: 8),
 
-          // Calendar
           Expanded(
             child: TableCalendar(
               firstDay:
@@ -901,8 +909,7 @@ class _CalendarEditorSheetState
                 setState(() => _focusedDay = focused);
                 _toggleDay(selected);
               },
-              onPageChanged: (f) =>
-                  setState(() => _focusedDay = f),
+              onPageChanged: (f) => setState(() => _focusedDay = f),
               calendarBuilders: CalendarBuilders(
                 defaultBuilder: (ctx, day, _) =>
                     _editorCell(day, selColor, cs),
@@ -940,7 +947,6 @@ class _CalendarEditorSheetState
             ),
           ),
 
-          // Apply button
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: SizedBox(
@@ -979,9 +985,8 @@ class _CalendarEditorSheetState
     final isPast = normed.isBefore(_today);
     final isSelected = _selected.contains(normed);
 
-    // Other existing statuses (not in current selection)
-    final existingStatus = widget.allData.statusOf(normed);
-    final hasOther = existingStatus != DateStatus.none &&
+    final existingStatus = widget.allData.personalStatusOf(normed);
+    final hasOther = existingStatus != PersonalDateStatus.none &&
         !widget.initialDates.contains(normed);
 
     Color? bg;
@@ -994,7 +999,7 @@ class _CalendarEditorSheetState
       bg = selColor;
       textColor = Colors.white;
     } else if (hasOther) {
-      bg = statusColor(existingStatus).withValues(alpha: 0.35);
+      bg = personalStatusColor(existingStatus).withValues(alpha: 0.35);
       textColor = cs.onSurface;
     } else if (isToday) {
       border = Border.all(color: cs.primary, width: 1.5);
@@ -1023,7 +1028,7 @@ class _CalendarEditorSheetState
   }
 }
 
-// ─── Legend dot ───────────────────────────────────────────────────────────────
+// ─── Legend dot ──────────────────────────────────────────────────────────────
 
 class _LegendDot extends StatelessWidget {
   const _LegendDot({required this.color, required this.label});
@@ -1049,15 +1054,15 @@ class _LegendDot extends StatelessWidget {
   }
 }
 
-// ─── Date group model ─────────────────────────────────────────────────────────
+// ─── Date group model ────────────────────────────────────────────────────────
 
 class _DateGroup {
   final List<DateTime> dates;
-  final DateStatus status;
+  final PersonalDateStatus status;
   const _DateGroup({required this.dates, required this.status});
 }
 
-// ─── Bulk status picker (for multi-select) ────────────────────────────────────
+// ─── Bulk status picker (multi-select) ───────────────────────────────────────
 
 class _BulkStatusPickerSheet extends StatelessWidget {
   const _BulkStatusPickerSheet({required this.count});
@@ -1089,18 +1094,22 @@ class _BulkStatusPickerSheet extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: cs.onSurface)),
           const SizedBox(height: 4),
-          Text('Choose a status for all selected dates',
+          Text('Mark all selected dates as:',
               style: TextStyle(
                   fontSize: 13,
                   color: cs.onSurface.withValues(alpha: 0.5))),
           const SizedBox(height: 8),
-          ...DateStatus.values
-              .where((s) => s != DateStatus.none)
-              .map((s) => _StatusOption(
-                    status: s,
-                    isSelected: false,
-                    onTap: () => Navigator.pop(context, s),
-                  )),
+          _PersonalStatusOption(
+            status: PersonalDateStatus.unavailable,
+            isSelected: false,
+            onTap: () => Navigator.pop(context, PersonalDateStatus.unavailable),
+          ),
+          _PersonalStatusOption(
+            status: PersonalDateStatus.maybeUnavailable,
+            isSelected: false,
+            onTap: () =>
+                Navigator.pop(context, PersonalDateStatus.maybeUnavailable),
+          ),
           ListTile(
             leading: Container(
               width: 40, height: 40,
@@ -1111,11 +1120,11 @@ class _BulkStatusPickerSheet extends StatelessWidget {
               child: Icon(Icons.delete_outline,
                   color: cs.onSurface.withValues(alpha: 0.5), size: 20),
             ),
-            title: Text('Remove all',
+            title: Text("Remove all (I'm available)",
                 style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: cs.onSurface.withValues(alpha: 0.6))),
-            onTap: () => Navigator.pop(context, DateStatus.none),
+            onTap: () => Navigator.pop(context, PersonalDateStatus.none),
           ),
           const SizedBox(height: 8),
         ]),
