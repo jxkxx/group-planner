@@ -118,7 +118,8 @@ Git tags: `v1.0.0-tf1` (first TestFlight submission, snapshot before v1.1 paradi
 - ✅ v1.0.0 build 1 uploaded + submitted for Beta App Review (status unknown — check App Store Connect)
 - ✅ External Testing group "Beta testers" created
 - ✅ Public TestFlight link enabled
-- ⏳ **v1.1.0 ready to build + upload** — this is the next step
+- ✅ **v1.1.0 (build 2) built, uploaded, and submitted to TestFlight (Jun 4 2026)** — attached to Friends (internal) + Beta testers (external); external is in Beta App Review
+  - ⚠️ **objective_c pod (9.3.0) bug:** its arm64 slice ships with the iOS *Simulator* platform marker (platform 7), failing Transporter validation (err 409, then err 90208 minos mismatch). Permanent guard added to `ios/Podfile` post_install (`EXCLUDED_ARCHS[sdk=iphonesimulator*]=arm64`, commit c8663e6). If a future build still fails: patch the framework binary in the .xcarchive with `vtool -set-build-version ios 13.0 18.2 -replace`, re-sign with the Apple Distribution cert, re-export via `xcodebuild -exportArchive`, then upload. (minos 13.0 must match the framework Info.plist's MinimumOSVersion.)
 
 ## Public URLs
 
@@ -168,15 +169,18 @@ git add docs/ && git commit -m "..." && git push
 
 ## Current sprint focus
 
-**Next step: build v1.1.0 IPA + upload to TestFlight.**
+**v1.1.0 (build 2) is in Beta App Review as of Jun 4 2026.** Next steps:
+1. Wait for Apple email approving external Beta review (hours–1 day). Internal "Friends" testers can already install.
+2. Once approved, confirm Beta testers + public TestFlight link are serving 1.1.0 (2).
+3. Tester "What to Test" notes saved at `docs/testflight_notes_v1.1.0.md`.
 
-Likely flow:
+Then back to the build plan (Week 5: Availability tab polish → Week 6: Profile → Week 7: design pass).
+
+**Build/upload flow that worked (for next release):**
 1. `flutter build ipa --release` — produces `build/ios/ipa/Group Point.ipa`
-2. If codesign export fails (common), open `build/ios/archive/Runner.xcarchive` in Xcode Organizer
-3. Distribute App → App Store Connect → Upload
-4. Wait for App Store Connect to process (~5-15 min)
-5. New build appears under TestFlight → already-attached External group "Beta testers" → may auto-distribute since v1.0.0 was already approved. If Apple flags "significantly different", needs new Beta Review.
-6. Public TestFlight link should auto-include the new build.
+2. Upload via Transporter app (drag IPA in → Deliver). Sign in as jakub.miklanek@gmail.com (app-specific password).
+3. If Transporter rejects the objective_c framework → see the pod-bug note under "Apple / App Store status" above for the vtool patch workaround.
+4. App Store Connect processes (~5–15 min) → add build to test groups → answer export compliance (No, standard HTTPS exempt) → external triggers Beta App Review.
 
 ## Conventions
 
