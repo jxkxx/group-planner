@@ -1,36 +1,29 @@
 # Group Point — Claude Code Context
 
-Auto-loaded at session start. Keeps Claude up to speed on where we are without re-reading the whole project.
+Auto-loaded at session start. Keeps Claude up to speed without re-reading the whole project.
 
 ---
 
 ## App identity
 
-- **Display name:** Group Point (renamed from "Group Planner" — taken on App Store)
-- **Bundle ID (iOS):** `com.jmiklanek.groupplanner` (internal, NOT shown to users — kept original for cert stability)
-- **Package name (Android):** same path, not yet configured for store
+- **Display name:** Group Point
+- **Bundle ID (iOS):** `com.jmiklanek.groupplanner` (internal, never shown to users)
 - **Tagline:** "Find the date that works"
-- **Version:** 1.0.0+1 (in pubspec). Bump when iterating.
+- **Version:** **1.1.0+2** in pubspec — ready to build IPA + upload to TestFlight as v1.1.0
 - **Developer:** Jakub Miklánek, Slovakia, jakub.miklanek@gmail.com
 - **Apple Team ID:** `JZC8J8KMKN`
 
-## What it does
+## Paradigm (v1.1.0)
 
-Helps friend groups pick a meetup date. Members mark their availability per date (Available / Likely / Maybe / Unavailable), the app suggests the optimal date. Inspired by Tricount's UX.
-
----
+- **Personal calendar** = mark when you CAN'T travel. Only 2 statuses: **Unavailable** (red) and **Maybe Unavailable** (amber).
+- **Group calendar** = per-group availability (members opt in for available/likely/maybe). Personal Unavailable → group sees as Unavailable by default (overridable per-group).
+- Subtitle on Availability tab: "Mark when you can't travel".
+- Personal **legacy fields are ignored** when computing group views (`availableDates`/`likelyDates`/`maybeDates` no longer read from personal).
+- Personal write clears all 5 fields (both new + legacy) so data stays clean.
 
 ## Tech stack
 
-- **Frontend:** Flutter (Dart 3.11.5)
-- **State:** Riverpod (`flutter_riverpod`)
-- **Auth:** Firebase Auth — Google, Apple, Email/Password
-- **DB:** Firestore (cloud_firestore)
-- **Calendar:** `table_calendar` package
-- **Sharing:** `share_plus`
-- **Persisted prefs:** `shared_preferences`
-- **Launcher icons:** `flutter_launcher_icons`
-- **Splash:** `flutter_native_splash`
+Flutter (Dart 3.11.5) · Riverpod · Firebase Auth (Google/Apple/Email) · Firestore · table_calendar · share_plus · shared_preferences · flutter_launcher_icons · flutter_native_splash.
 
 ## Project structure (key files)
 
@@ -38,36 +31,34 @@ Helps friend groups pick a meetup date. Members mark their availability per date
 lib/
 ├── main.dart                                 # MaterialApp + theme + routing
 ├── core/
-│   ├── design_tokens.dart                    # AppColors, AppSpacing, AppRadius, AppText — single source of truth for theme
-│   └── theme_provider.dart                   # ThemeMode + start day of week prefs
+│   ├── design_tokens.dart                    # AppColors, AppSpacing, AppRadius, AppText
+│   └── theme_provider.dart                   # ThemeMode + week-start + select-tutorial-seen
 ├── features/
-│   ├── auth/
-│   │   ├── sign_in_screen.dart               # Google / Apple / Email
-│   │   └── email_sign_in_screen.dart         # Email sign up / sign in
-│   ├── onboarding/
-│   │   ├── onboarding_provider.dart
-│   │   └── onboarding_screen.dart            # 4-slide intro on first launch
+│   ├── auth/                                 # sign_in_screen.dart, email_sign_in_screen.dart
+│   ├── onboarding/                           # 4-slide intro on first launch
+│   ├── availability/
+│   │   ├── providers/availability_provider.dart   # DateStatus + PersonalDateStatus enums
+│   │   └── screens/availability_screen.dart       # 2-status personal calendar
 │   ├── groups/
-│   │   ├── models/group_model.dart           # GroupModel with tripLength, window, memberNames map
+│   │   ├── models/group_model.dart           # tripLength, window, minHeadcount, confirmations
 │   │   ├── providers/
-│   │   │   ├── groups_provider.dart          # active / archived / single group, CRUD
+│   │   │   ├── groups_provider.dart          # CRUD + setMyOverrideInGroup + toggleConfirmation
 │   │   │   └── activity_provider.dart        # group activity feed
-│   │   ├── widgets/trip_settings.dart        # shared widget for create/edit
+│   │   ├── widgets/
+│   │   │   ├── trip_settings.dart            # shared widget (length+tol, range, headcount)
+│   │   │   └── emoji_data.dart               # ~290 emojis in 10 categories
 │   │   └── screens/
-│   │       ├── groups_screen.dart            # main list (Tricount-style cards)
+│   │       ├── groups_screen.dart            # Tricount-style card list
 │   │       ├── create_group_screen.dart
 │   │       ├── edit_group_screen.dart
 │   │       ├── join_group_screen.dart
-│   │       ├── group_detail_screen.dart      # tabs: Calendar / Members / Activity
-│   │       └── group_details_screen.dart     # full per-member breakdown
-│   ├── availability/
-│   │   ├── providers/availability_provider.dart  # 4 statuses, per-user
-│   │   └── screens/availability_screen.dart      # cycle, multi-select mode, group-by-range list
+│   │       ├── group_detail_screen.dart      # 3 tabs: Calendar / Members / Activity
+│   │       └── group_details_screen.dart     # per-member dates breakdown
 │   └── profile/
 │       ├── services/account_deletion.dart   # full data + auth wipe (Apple App Store req)
 │       └── screens/
-│           ├── profile_screen.dart           # avatar, name, nickname, options, archived, about
-│           └── legal_screen.dart             # Privacy + Terms (in-app)
+│           ├── profile_screen.dart           # avatar, name, nickname, options, archived
+│           └── legal_screen.dart             # Privacy + Terms in-app
 
 assets/
 ├── app_icon.png                              # 1024×1024 GP-in-Venn icon
@@ -80,37 +71,54 @@ docs/                                         # GitHub Pages — public legal si
 # Live at: https://jxkxx.github.io/group-planner/
 ```
 
----
-
-## Firebase setup
+## Firebase
 
 - **Project:** `group-planner-65c05`
-- **Rules:** in `firestore.rules` (committed), deployed via `firebase deploy --only firestore:rules`
+- **Rules:** `firestore.rules` (committed), deployed via `firebase deploy --only firestore:rules`
 - **Collections:**
-  - `users/{uid}` — displayName, nickname, availableDates, likelyDates, maybeDates, unavailableDates
-  - `groups/{groupId}` — name, emoji, createdBy, createdAt, inviteCode, memberIds, archivedBy, memberNames, tripLength, tripLengthTolerance, windowStart, windowEnd, showUnavailableDates
+  - `users/{uid}` — displayName, nickname, unavailableDates, maybeUnavailableDates (legacy availableDates/likelyDates/maybeDates ignored)
+  - `groups/{groupId}` — name, emoji, createdBy, createdAt, inviteCode, memberIds, archivedBy, memberNames, tripLength, tripLengthTolerance, windowStart, windowEnd, **minHeadcount**, **confirmations** {date→[uids]}
   - `groups/{groupId}/activity/{id}` — uid, action, date, timestamp
-  - `groups/{groupId}/availabilities/{uid}` — per-group availability override
+  - `groups/{groupId}/availabilities/{uid}` — per-group availability override (4 statuses)
 - **Auth providers enabled:** Google, Apple, Email/Password
 
 ## Known v1 security caveat
 
-Any authenticated user can read any `users/{uid}` doc (needed to render group members). A malicious authed user could scrape availability. Acceptable for v1; future fix = Cloud Function for member resolution.
+Any authenticated user can read any `users/{uid}` doc. Acceptable for v1; future fix = Cloud Function for member resolution.
 
 ---
 
-## Apple / App Store status (as of last session)
+## v1.1.0 — what shipped since v1.0.0-tf1
+
+| # | Feature |
+|---|---|
+| **1** | Personal calendar redesigned — 2 statuses (Unavailable + Maybe Unavailable), new subtitle |
+| **2** | Multi-select in group calendar — "Select dates" → tap many → apply status |
+| **3** | First-time popup on Availability tab explaining Select feature |
+| **4** | Sync warning — group Available conflicts with personal Unavailable |
+| **5** | Confirmation flow — members confirm optimal date, "all confirmed" prompts block in personal |
+| **6** | Required headcount — toggle in trip settings. Calendar greens scale 50%→100% of min |
+| **7** | Tap a member in Members tab → opens their per-status date breakdown |
+| **8** | "Show all votes" replaced by dropdown — pick which statuses appear as dots |
+| **9** | Subtle "Group Point" brand pill on empty states |
+| **fix** | Sync issue — personal write clears legacy fields; groups ignore legacy fields |
+| **fix** | Calendar cell alignment — wrapped in fixed 40×40 SizedBox |
+| **fix** | Required headcount row overflow — wrapped label in Expanded |
+| **fix** | Removed redundant "Show unavailable dates" toggle |
+| **fix** | Expanded emoji list to ~290 across 10 categories (Travel, Party, Food, Sports, Beach, 4× Flag regions, Other) |
+
+Git tags: `v1.0.0-tf1` (first TestFlight submission, snapshot before v1.1 paradigm shift).
+
+## Apple / App Store status
 
 - ✅ Apple Developer Program enrolled (Team JZC8J8KMKN)
-- ✅ Distribution certificate created (in Keychain)
+- ✅ Distribution certificate created
 - ✅ Bundle ID registered with Sign In with Apple capability
 - ✅ App Store Connect app created: **Group Point**
-- ✅ First build (1.0.0 build 1) uploaded via Xcode Organizer
-- ✅ Build status: **Complete** (encryption compliance answered: "None of the algorithms mentioned above")
-- ✅ Test Information filled in
+- ✅ v1.0.0 build 1 uploaded + submitted for Beta App Review (status unknown — check App Store Connect)
 - ✅ External Testing group "Beta testers" created
-- ✅ Submitted for **Beta App Review** (waiting for Apple, 12-48h typical)
-- ✅ Public TestFlight link enabled (will go live after beta approval)
+- ✅ Public TestFlight link enabled
+- ⏳ **v1.1.0 ready to build + upload** — this is the next step
 
 ## Public URLs
 
@@ -120,9 +128,9 @@ Any authenticated user can read any `users/{uid}` doc (needed to render group me
 
 ---
 
-## Design system (use these — don't hardcode)
+## Design system
 
-`lib/core/design_tokens.dart`:
+Use tokens, never hardcoded colors:
 
 - `AppColors.{available|likely|maybe|danger|info|accent|purple|brandPrimary|brandPrimaryDark|lightBg|lightSurface|darkBg|darkSurface|...}`
 - `AppColors.avatarFor(name)` — stable color from string
@@ -132,28 +140,21 @@ Any authenticated user can read any `users/{uid}` doc (needed to render group me
 - `AppIconSize.{xs|sm|md|lg|xl}`
 - `AppDecorations.card(context)` / `.tintedIcon(color)` / `.pill(color)`
 
-When adding new screens or refactoring, **always pull from tokens** rather than hardcoding colors.
-
----
-
 ## Common commands
 
 ```bash
-# Run on iPhone 17 simulator (id may change)
-flutter run -d 539D77F3-F55C-4B7C-A077-54BDBC82432C
+# Run on iPhone 17 simulator (id may change after Xcode updates)
+flutter run -d B152114A-2BA9-452F-A5C4-93EB559D30BE
 
-# Or generic
-flutter run -d ios
-
-# Build signed App Store IPA
+# Build App Store IPA
 flutter build ipa --release
 # Output: build/ios/ipa/Group Point.ipa
-# If codesign fails: open the .xcarchive in Xcode and use Distribute App flow
+# If codesign fails on export → open the .xcarchive in Xcode + Distribute App flow
 
 # Regenerate launcher icons (after replacing assets/app_icon.png)
 dart run flutter_launcher_icons
 
-# Regenerate splash (after icon/color changes in pubspec.yaml)
+# Regenerate splash (after changes in pubspec.yaml)
 dart run flutter_native_splash:create
 
 # Deploy Firestore rules
@@ -167,40 +168,38 @@ git add docs/ && git commit -m "..." && git push
 
 ## Current sprint focus
 
-1. **Beta App Review** in progress (Apple, waiting)
-2. **App Store v1.0 submission** in parallel — fill listing fields, upload screenshots, App Privacy nutrition labels, age rating, submit
-3. **Bug fixes from TestFlight beta** as friends report
+**Next step: build v1.1.0 IPA + upload to TestFlight.**
 
-## Open todos for v1 launch
-
-- [ ] App Store listing copy filled in (subtitle/description/keywords/promo) — listing copy is written, paste into Distribution page
-- [ ] App Store screenshots (5-6 from simulator, 6.7" iPhone size: 1290×2796)
-- [ ] Pricing & Availability set (Free, all countries)
-- [ ] Age Rating questionnaire (answer 4+)
-- [ ] App Privacy nutrition labels (data we collect: email, name, photo, availability, group membership)
-- [ ] Submit for App Review (separate from Beta Review)
-
-## Known cleanups (low priority)
-
-- A few unused imports / dead fields in `profile_screen.dart` (`_datesExpanded`)
-- `_OptimalDateCard` reference removed but file might still have stale comments
-- Linter warnings remain for `unnecessary_underscores`, `unused_field` — non-blocking
-
----
+Likely flow:
+1. `flutter build ipa --release` — produces `build/ios/ipa/Group Point.ipa`
+2. If codesign export fails (common), open `build/ios/archive/Runner.xcarchive` in Xcode Organizer
+3. Distribute App → App Store Connect → Upload
+4. Wait for App Store Connect to process (~5-15 min)
+5. New build appears under TestFlight → already-attached External group "Beta testers" → may auto-distribute since v1.0.0 was already approved. If Apple flags "significantly different", needs new Beta Review.
+6. Public TestFlight link should auto-include the new build.
 
 ## Conventions
 
-- **Don't create new files unless explicitly necessary** — edit existing
-- **Never commit secrets** — Firebase API keys are public by design (Firestore rules are the guard)
-- **Use tokens, not hardcoded colors** — see `design_tokens.dart`
-- **Direct responses, no fluff** — user prefers short, decisive answers (developer with limited time)
+- **Direct, no fluff** — user is an amateur dev with limited time. Prefers short, decisive answers.
+- **Don't create new files unless necessary** — edit existing
+- **Never commit secrets** — Firebase API keys are public by design (rules are the guard)
+- **Use design tokens** — see `design_tokens.dart`
+- **Email obfuscation** in public HTML (JS reveal pattern)
 - **Slovakia jurisdiction** in legal docs
-- **Email obfuscation** in public HTML (JS reveal pattern, see `docs/*.html`)
 
-## Quick "where are we" check at session start
+## Quick "where are we" at session start
 
-If unsure of state, check:
 1. `git log --oneline -10` — recent commits
 2. `git status` — uncommitted work
 3. App Store Connect → TestFlight tab — beta status
-4. App Store Connect → Distribution tab — v1.0 listing status
+4. `grep version pubspec.yaml` — current version
+
+## Latest uncommitted changes
+
+After v1.1.0 base, also done this session (not yet committed in some cases):
+- "Show unavailable dates" toggle removed
+- Emoji list expanded (~290 emojis, 10 categories) — shared `emoji_data.dart`
+- Calendar cell wrapped in fixed-size SizedBox to fix alignment issues
+- Required headcount row layout fixed (overflow)
+
+Recommend committing before building IPA.

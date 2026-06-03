@@ -2,18 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/groups_provider.dart';
 import '../widgets/trip_settings.dart';
+import '../widgets/emoji_data.dart';
 import 'group_detail_screen.dart';
 import '../../../core/design_tokens.dart';
-
-// Curated emoji set: most-used for group naming
-const _emojiCategories = {
-  'Travel': ['🏖️', '✈️', '🗺️', '🏝️', '⛰️', '🏔️', '🏕️', '🌍', '🎒', '🧳'],
-  'Food & Drink': ['🍕', '🍔', '🍣', '🍝', '🌮', '🍻', '🍷', '☕', '🍰', '🥂'],
-  'Activities': ['🎉', '🎮', '⚽', '🎬', '🎵', '🎤', '🎨', '🏖️', '🎲', '🎳'],
-  'Sports': ['🏃', '🚴', '🧗', '🏋️', '⛷️', '🏂', '🏄', '🎾', '🏀', '⚾'],
-  'Flags': ['🇨🇿', '🇸🇰', '🇺🇸', '🇬🇧', '🇫🇷', '🇩🇪', '🇮🇹', '🇪🇸', '🇯🇵', '🇲🇽'],
-  'Other': ['👨‍👩‍👧', '🎂', '💼', '🏠', '🚗', '🎓', '💍', '🎁', '🐶', '⭐'],
-};
 
 class CreateGroupScreen extends ConsumerStatefulWidget {
   const CreateGroupScreen({super.key});
@@ -28,6 +19,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   String? _emoji;
   int? _tripLength;
   int? _tripLengthTolerance;
+  int? _minHeadcount;
   DateTime? _windowStart;
   DateTime? _windowEnd;
   bool _loading = false;
@@ -61,6 +53,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             emoji: _emoji,
             tripLength: _tripLength,
             tripLengthTolerance: _tripLengthTolerance,
+            minHeadcount: _minHeadcount,
             windowStart: _windowStart,
             windowEnd: _windowEnd,
           );
@@ -211,12 +204,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               initialTripLengthTolerance: _tripLengthTolerance,
               initialWindowStart: _windowStart,
               initialWindowEnd: _windowEnd,
-              onChanged: (len, tol, start, end) {
+              initialMinHeadcount: _minHeadcount,
+              onChanged: (len, tol, start, end, headcount) {
                 setState(() {
                   _tripLength = len;
                   _tripLengthTolerance = tol;
                   _windowStart = start;
                   _windowEnd = end;
+                  _minHeadcount = headcount;
                 });
               },
             ),
@@ -304,7 +299,7 @@ class _EmojiPickerSheet extends StatelessWidget {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-              children: _emojiCategories.entries.map((entry) {
+              children: emojiCategories.entries.map((entry) {
                 return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

@@ -16,6 +16,11 @@ class GroupModel {
   final DateTime? windowStart;    // inclusive
   final DateTime? windowEnd;      // inclusive
 
+  /// Minimum number of confirmed members required for the trip.
+  /// Calendar color intensity scales from 50% → 100% of this number.
+  /// Below 50% of this number = no green shown.
+  final int? minHeadcount;
+
   // Per-group name override: uid -> display name
   final Map<String, String> memberNames;
 
@@ -36,6 +41,7 @@ class GroupModel {
     this.tripLengthTolerance,
     this.windowStart,
     this.windowEnd,
+    this.minHeadcount,
     this.memberNames = const {},
     this.confirmations = const {},
   });
@@ -55,6 +61,7 @@ class GroupModel {
       tripLengthTolerance: (data['tripLengthTolerance'] as num?)?.toInt(),
       windowStart: (data['windowStart'] as Timestamp?)?.toDate(),
       windowEnd: (data['windowEnd'] as Timestamp?)?.toDate(),
+      minHeadcount: (data['minHeadcount'] as num?)?.toInt(),
       memberNames: Map<String, String>.from(
           (data['memberNames'] as Map?) ?? {}),
       confirmations: ((data['confirmations'] as Map?) ?? {}).map(
@@ -77,6 +84,7 @@ class GroupModel {
         if (windowStart != null)
           'windowStart': Timestamp.fromDate(windowStart!),
         if (windowEnd != null) 'windowEnd': Timestamp.fromDate(windowEnd!),
+        if (minHeadcount != null) 'minHeadcount': minHeadcount,
       };
 }
 

@@ -113,12 +113,18 @@ final _groupMembersProvider =
       final name = (nick != null && nick.isNotEmpty)
           ? nick
           : (display != null && display.isNotEmpty ? display : 'Member');
+      // Personal calendar sync (new paradigm — personal is unavailability-only):
+      // - personal `unavailableDates` → group sees as Unavailable
+      // - personal `maybeUnavailableDates` → group sees as Maybe
+      // - Legacy fields (`availableDates`/`likelyDates`/`maybeDates`) are
+      //   intentionally IGNORED here. Available/Likely/Maybe come only from
+      //   the per-group override doc (`groups/{gid}/availabilities/{uid}`).
       return MemberData(
         uid: uid,
         name: name,
-        available: _parseDates(data['availableDates']),
-        likely: _parseDates(data['likelyDates']),
-        maybe: _parseDates(data['maybeDates']),
+        available: {}, // never from personal — only from group override
+        likely: {},
+        maybe: _parseDates(data['maybeUnavailableDates']),
         unavailable: _parseDates(data['unavailableDates']),
       );
     });
@@ -141,7 +147,9 @@ final _groupSettingsProvider =
       .collection('groups')
       .doc(groupId)
       .snapshots()
-      .map((doc) => (doc.data()?['showUnavailableDates'] as bool?) ?? false);
+      // Default to true so personal-calendar unavailable dates are visible
+      // immediately without requiring a toggle flip.
+      .map((doc) => (doc.data()?['showUnavailableDates'] as bool?) ?? true);
 });
 
 Set<DateTime> _parseDates(dynamic raw) {
@@ -540,7 +548,10 @@ class _DatesTab extends ConsumerStatefulWidget {
 
 class _DatesTabState extends ConsumerState<_DatesTab> {
   DateTime _focusedDay = DateTime.now();
-  bool _showAllVotes = false;
+  // What member-vote dots to show on the calendar. Default: just available.
+  // Toggle in the "Show member votes" dropdown.
+  Set<DateStatus> _visibleVoteTypes = {DateStatus.available};
+  bool get _showAllVotes => _visibleVoteTypes.isNotEmpty;
   bool? _localShowUnavail;
   bool _lastSyncedUnavail = false;
 
@@ -743,26 +754,56 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
           const SizedBox(height: 10),
         ],
 
-        // Select button (only when NOT in select mode)
+        // Select + Refresh buttons (only when NOT in select mode)
         if (!_selectMode) ...[
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: _enterSelectMode,
-              icon: Icon(Icons.checklist_rounded,
-                  color: cs.primary, size: 18),
-              label: Text('Select dates',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: cs.primary)),
-              style: TextButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton.icon(
+                onPressed: () {
+                  ref.invalidate(_groupMembersProvider(widget.group.memberIds));
+                  ref.invalidate(groupOverridesProvider(widget.group.id));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: const Text('Synced with personal calendars'),
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 2),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    margin: const EdgeInsets.all(16),
+                  ));
+                },
+                icon: Icon(Icons.refresh_rounded,
+                    color: cs.primary, size: 18),
+                label: Text('Sync',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: cs.primary)),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
-            ),
+              const SizedBox(width: 6),
+              TextButton.icon(
+                onPressed: _enterSelectMode,
+                icon: Icon(Icons.checklist_rounded,
+                    color: cs.primary, size: 18),
+                label: Text('Select dates',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: cs.primary)),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
           ),
         ],
 
@@ -855,29 +896,52 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
           const SizedBox(height: 14),
         ],
 
-        // Show all votes toggle
+        // Show member votes — dropdown selector
         _SectionCard(
           padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text('Show all votes',
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface)),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                  'Each member appears as a colored dot on the calendar',
-                  style: TextStyle(
-                      fontSize: 13,
-                      height: 1.3,
-                      color: cs.onSurface.withValues(alpha: 0.72))),
-            ),
-            value: _showAllVotes,
-            activeThumbColor: cs.primary,
-            onChanged: (v) => setState(() => _showAllVotes = v),
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: InkWell(
+            onTap: () async {
+              final result = await showModalBottomSheet<Set<DateStatus>>(
+                context: context,
+                backgroundColor: Colors.transparent,
+                builder: (_) =>
+                    _VoteFilterSheet(initial: _visibleVoteTypes),
+              );
+              if (result != null) {
+                setState(() => _visibleVoteTypes = result);
+              }
+            },
+            child: Row(children: [
+              Icon(Icons.visibility_outlined,
+                  size: 18, color: cs.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Show member votes',
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: cs.onSurface)),
+                      const SizedBox(height: 2),
+                      Text(
+                          _visibleVoteTypes.isEmpty
+                              ? 'No vote dots'
+                              : _visibleVoteTypes
+                                  .map((s) => s.label)
+                                  .join(', '),
+                          style: TextStyle(
+                              fontSize: 13,
+                              height: 1.3,
+                              color: cs.onSurface
+                                  .withValues(alpha: 0.72))),
+                    ]),
+              ),
+              Icon(Icons.keyboard_arrow_down_rounded,
+                  color: cs.onSurface.withValues(alpha: 0.45)),
+            ]),
           ),
         ),
 
@@ -903,41 +967,6 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
             }).toList(),
           ),
         ],
-
-        // Show unavailable toggle (group setting)
-        const SizedBox(height: 10),
-        _SectionCard(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text('Show unavailable dates',
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface)),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                  'Show when members are unavailable on the calendar',
-                  style: TextStyle(
-                      fontSize: 13,
-                      height: 1.3,
-                      color: cs.onSurface.withValues(alpha: 0.72))),
-            ),
-            value: _localShowUnavail ?? widget.showUnavail,
-            activeThumbColor: cs.primary,
-            onChanged: (val) {
-              // Optimistic local update — no flicker
-              setState(() => _localShowUnavail = val);
-              FirebaseFirestore.instance
-                  .collection('groups')
-                  .doc(widget.group.id)
-                  .set({'showUnavailableDates': val},
-                      SetOptions(merge: true));
-            },
-          ),
-        ),
 
         // Optimal date(s) below calendar
         if (optimalRange != null) ...[
@@ -976,11 +1005,20 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
     final isPast = normed.isBefore(now);
     final score = scoreMap[normed] ?? 0.0;
     final unavailCount = unavailMap[normed] ?? 0;
-    final availRatio = total > 0 ? (score / total).clamp(0.0, 1.0) : 0.0;
-    final hasAvail = score > 0;
-    final effectiveShowUnavail =
-        _localShowUnavail ?? widget.showUnavail;
-    final hasUnavail = effectiveShowUnavail && unavailCount > 0;
+    // Color intensity: if minHeadcount is set, scale from 50% of min → 100% of min.
+    // Below half of min = no green. Without min, scale from 0 → total members.
+    final double availRatio;
+    final minHc = widget.group.minHeadcount;
+    if (minHc != null && minHc > 0) {
+      final threshold = minHc / 2.0;
+      final peak = minHc.toDouble();
+      availRatio = ((score - threshold) / (peak - threshold)).clamp(0.0, 1.0);
+    } else {
+      availRatio = total > 0 ? (score / total).clamp(0.0, 1.0) : 0.0;
+    }
+    final hasAvail = availRatio > 0;
+    // Always show unavailable indicators (toggle removed in v1.1.x).
+    final hasUnavail = unavailCount > 0;
 
     Color? bgColor;
     if (hasAvail && !_showAllVotes) {
@@ -999,11 +1037,24 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
       textColor = cs.onSurface;
     }
 
-    // Build dot overlays if show-all-votes is on (AVAILABLE members only)
+    // Build dot overlays for selected vote types.
     final voteDots = <Widget>[];
-    if (_showAllVotes && !isPast) {
-      final votingMembers =
-          widget.members.where((m) => m.available.contains(normed)).toList();
+    if (_visibleVoteTypes.isNotEmpty && !isPast) {
+      final votingMembers = widget.members.where((m) {
+        for (final type in _visibleVoteTypes) {
+          if (type == DateStatus.available &&
+              m.available.contains(normed)) return true;
+          if (type == DateStatus.likely && m.likely.contains(normed)) {
+            return true;
+          }
+          if (type == DateStatus.maybe && m.maybe.contains(normed)) {
+            return true;
+          }
+          if (type == DateStatus.unavailable &&
+              m.unavailable.contains(normed)) return true;
+        }
+        return false;
+      }).toList();
 
       for (var i = 0; i < votingMembers.length && i < 6; i++) {
         final m = votingMembers[i];
@@ -1020,7 +1071,12 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
 
     final isSelected = _selectMode && _selected.contains(normed);
 
-    return Stack(
+    // Wrap in fixed-size SizedBox so all cells render at the same height
+    // regardless of whether they have dots / selection rings / etc.
+    return Center(
+      child: SizedBox(
+        width: 40, height: 40,
+        child: Stack(
       alignment: Alignment.center,
       children: [
         Container(
@@ -1043,11 +1099,12 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
           ),
         ),
         if (isSelected)
-          Container(
-            width: 38, height: 38,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: cs.primary, width: 2.5),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: cs.primary, width: 2.5),
+              ),
             ),
           ),
         if (hasUnavail && !_showAllVotes)
@@ -1074,6 +1131,8 @@ class _DatesTabState extends ConsumerState<_DatesTab> {
             child: Row(mainAxisSize: MainAxisSize.min, children: voteDots),
           ),
       ],
+        ),
+      ),
     );
   }
 
@@ -1581,7 +1640,15 @@ class _MembersTab extends ConsumerWidget {
               final isCreator = m.uid == group.createdBy;
               final isMe = m.uid == myUid;
               return Column(children: [
-                Padding(
+                InkWell(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => GroupDetailsBreakdownScreen(
+                          group: group, members: [m]),
+                    ),
+                  ),
+                  child: Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 14),
                   child: Row(children: [
@@ -1690,7 +1757,10 @@ class _MembersTab extends ConsumerWidget {
                             ),
                           ]),
                     ),
+                    Icon(Icons.chevron_right,
+                        color: cs.onSurface.withValues(alpha: 0.35), size: 20),
                   ]),
+                ),
                 ),
                 if (!isLast)
                   Divider(
@@ -2710,5 +2780,133 @@ class _ConfirmationRowState extends ConsumerState<_ConfirmationRow> {
         }
       }
     }
+  }
+}
+
+// ─── Vote filter sheet ───────────────────────────────────────────────────────
+
+class _VoteFilterSheet extends StatefulWidget {
+  const _VoteFilterSheet({required this.initial});
+  final Set<DateStatus> initial;
+
+  @override
+  State<_VoteFilterSheet> createState() => _VoteFilterSheetState();
+}
+
+class _VoteFilterSheetState extends State<_VoteFilterSheet> {
+  late Set<DateStatus> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set.from(widget.initial);
+  }
+
+  Color _colorFor(DateStatus s) => switch (s) {
+        DateStatus.available => AppColors.available,
+        DateStatus.likely => AppColors.likely,
+        DateStatus.maybe => AppColors.maybe,
+        DateStatus.unavailable => AppColors.danger,
+        DateStatus.none => Colors.transparent,
+      };
+
+  IconData _iconFor(DateStatus s) => switch (s) {
+        DateStatus.available => Icons.check_circle_outline,
+        DateStatus.likely => Icons.thumb_up_outlined,
+        DateStatus.maybe => Icons.help_outline,
+        DateStatus.unavailable => Icons.cancel_outlined,
+        DateStatus.none => Icons.circle_outlined,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+          color: cs.surface, borderRadius: BorderRadius.circular(20)),
+      child: SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+                color: cs.onSurface.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(2)),
+          ),
+          const SizedBox(height: 14),
+          Text('Show member votes',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface)),
+          const SizedBox(height: 4),
+          Text('Choose which statuses appear as dots on the calendar',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: cs.onSurface.withValues(alpha: 0.55))),
+          const SizedBox(height: 8),
+          ...DateStatus.values.where((s) => s != DateStatus.none).map((s) {
+            final c = _colorFor(s);
+            final isSelected = _selected.contains(s);
+            return CheckboxListTile(
+              value: isSelected,
+              onChanged: (v) {
+                setState(() {
+                  if (v == true) {
+                    _selected.add(s);
+                  } else {
+                    _selected.remove(s);
+                  }
+                });
+              },
+              activeColor: c,
+              controlAffinity: ListTileControlAffinity.trailing,
+              secondary: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: c.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(_iconFor(s), color: c, size: 18),
+              ),
+              title: Text(s.label,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600, color: cs.onSurface)),
+            );
+          }),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context, <DateStatus>{}),
+                  child: Text('Hide all',
+                      style: TextStyle(color: cs.primary)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(context, _selected),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: cs.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Apply',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
   }
 }

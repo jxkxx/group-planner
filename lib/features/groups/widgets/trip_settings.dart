@@ -10,14 +10,16 @@ class TripSettings extends StatefulWidget {
     this.initialWindowStart,
     this.initialWindowEnd,
     required this.onChanged,
+    this.initialMinHeadcount,
   });
 
   final int? initialTripLength;
   final int? initialTripLengthTolerance;
+  final int? initialMinHeadcount;
   final DateTime? initialWindowStart;
   final DateTime? initialWindowEnd;
   final void Function(int? tripLength, int? tolerance, DateTime? start,
-      DateTime? end) onChanged;
+      DateTime? end, int? minHeadcount) onChanged;
 
   @override
   State<TripSettings> createState() => _TripSettingsState();
@@ -28,6 +30,8 @@ class _TripSettingsState extends State<TripSettings> {
   late bool _windowEnabled;
   late int _length;
   late int _tolerance;
+  late bool _headcountEnabled;
+  late int _minHeadcount;
   DateTime? _start;
   DateTime? _end;
 
@@ -37,6 +41,8 @@ class _TripSettingsState extends State<TripSettings> {
     _lengthEnabled = widget.initialTripLength != null;
     _length = widget.initialTripLength ?? 2;
     _tolerance = widget.initialTripLengthTolerance ?? 0;
+    _headcountEnabled = widget.initialMinHeadcount != null;
+    _minHeadcount = widget.initialMinHeadcount ?? 2;
     _windowEnabled = widget.initialWindowStart != null;
     _start = widget.initialWindowStart;
     _end = widget.initialWindowEnd;
@@ -48,6 +54,7 @@ class _TripSettingsState extends State<TripSettings> {
       _lengthEnabled ? _tolerance : null,
       _windowEnabled ? _start : null,
       _windowEnabled ? _end : null,
+      _headcountEnabled ? _minHeadcount : null,
     );
   }
 
@@ -311,6 +318,97 @@ class _TripSettingsState extends State<TripSettings> {
                         color: cs.onSurface)),
                 trailing: Icon(Icons.chevron_right,
                     color: cs.onSurface.withValues(alpha: 0.35)),
+              ),
+            ],
+          ]),
+        ),
+
+        const SizedBox(height: 12),
+
+        // ── Minimum headcount ───────────────────────────────
+        Container(
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(children: [
+            SwitchListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+              title: Text('Required headcount',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600, color: cs.onSurface)),
+              subtitle: Text(
+                  _headcountEnabled
+                      ? 'Trip needs at least $_minHeadcount available'
+                      : 'Trip can happen with any number of people',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurface.withValues(alpha: 0.55))),
+              value: _headcountEnabled,
+              activeThumbColor: cs.primary,
+              onChanged: (v) {
+                setState(() => _headcountEnabled = v);
+                _emit();
+              },
+            ),
+            if (_headcountEnabled) ...[
+              Divider(
+                  height: 1,
+                  indent: 16,
+                  endIndent: 16,
+                  color: cs.onSurface.withValues(alpha: 0.06)),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 12),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Minimum',
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: cs.onSurface)),
+                          Text(
+                              'Greens scale from half this number',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: cs.onSurface.withValues(alpha: 0.5))),
+                        ]),
+                  ),
+                  const SizedBox(width: 6),
+                  _CircleBtn(
+                    icon: Icons.remove,
+                    onTap: _minHeadcount > 1
+                        ? () {
+                            setState(() => _minHeadcount--);
+                            _emit();
+                          }
+                        : null,
+                  ),
+                  Container(
+                    width: 44,
+                    alignment: Alignment.center,
+                    child: Text('$_minHeadcount',
+                        style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: cs.onSurface)),
+                  ),
+                  _CircleBtn(
+                    icon: Icons.add,
+                    onTap: _minHeadcount < 100
+                        ? () {
+                            setState(() => _minHeadcount++);
+                            _emit();
+                          }
+                        : null,
+                  ),
+                ]),
               ),
             ],
           ]),

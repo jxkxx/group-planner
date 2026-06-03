@@ -135,10 +135,14 @@ class AvailabilityNotifier extends AsyncNotifier<void> {
     final docRef =
         FirebaseFirestore.instance.collection('users').doc(uid);
 
-    // Remove from both personal status fields
+    // Clear from ALL personal fields — legacy + new — to keep data clean
+    // after the paradigm shift to unavailability-only.
     await docRef.set({
       'unavailableDates': FieldValue.arrayRemove([dateStr]),
       'maybeUnavailableDates': FieldValue.arrayRemove([dateStr]),
+      'availableDates': FieldValue.arrayRemove([dateStr]),
+      'likelyDates': FieldValue.arrayRemove([dateStr]),
+      'maybeDates': FieldValue.arrayRemove([dateStr]),
     }, SetOptions(merge: true));
 
     if (status == PersonalDateStatus.none) {

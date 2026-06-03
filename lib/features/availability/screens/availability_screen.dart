@@ -354,7 +354,27 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
                 _buildGroupedList(data, cs),
               ],
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 32),
+
+              // Tiny brand tag
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: cs.onSurface.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text('Group Point',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2,
+                          color: cs.onSurface.withValues(alpha: 0.45))),
+                ),
+              ),
+
+              const SizedBox(height: 24),
             ],
           );
         },

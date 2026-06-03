@@ -211,6 +211,20 @@ class _EmptyState extends StatelessWidget {
                   fontSize: 15,
                   color: cs.onSurface.withValues(alpha: 0.55),
                   height: 1.5)),
+          const SizedBox(height: 32),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: cs.onSurface.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text('Group Point',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                    color: cs.onSurface.withValues(alpha: 0.45))),
+          ),
         ]),
       ),
     );

@@ -55,6 +55,7 @@ class GroupsNotifier extends AsyncNotifier<void> {
     int? tripLengthTolerance,
     DateTime? windowStart,
     DateTime? windowEnd,
+    int? minHeadcount,
   }) async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final code = _generateCode();
@@ -71,6 +72,7 @@ class GroupsNotifier extends AsyncNotifier<void> {
       tripLengthTolerance: tripLengthTolerance,
       windowStart: windowStart,
       windowEnd: windowEnd,
+      minHeadcount: minHeadcount,
     );
     await doc.set(group.toMap());
 
@@ -134,6 +136,7 @@ class GroupsNotifier extends AsyncNotifier<void> {
     int? tripLengthTolerance,
     DateTime? windowStart,
     DateTime? windowEnd,
+    int? minHeadcount,
   }) async {
     await FirebaseFirestore.instance.collection('groups').doc(groupId).update({
       'name': name.trim(),
@@ -144,6 +147,7 @@ class GroupsNotifier extends AsyncNotifier<void> {
           windowStart != null ? Timestamp.fromDate(windowStart) : null,
       'windowEnd':
           windowEnd != null ? Timestamp.fromDate(windowEnd) : null,
+      'minHeadcount': minHeadcount,
     });
   }
 
