@@ -340,7 +340,7 @@ class _TripSettingsState extends State<TripSettings> {
                       fontWeight: FontWeight.w600, color: cs.onSurface)),
               subtitle: Text(
                   _headcountEnabled
-                      ? 'Trip needs at least $_minHeadcount available'
+                      ? 'Trip needs at least $_minHeadcount people available'
                       : 'Trip can happen with any number of people',
                   style: TextStyle(
                       fontSize: 12,
@@ -372,7 +372,7 @@ class _TripSettingsState extends State<TripSettings> {
                                   fontWeight: FontWeight.w500,
                                   color: cs.onSurface)),
                           Text(
-                              'Greens scale from half this number',
+                              'Fewest people needed for the trip to happen',
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
