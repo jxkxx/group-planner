@@ -9,7 +9,7 @@ Auto-loaded at session start. Keeps Claude up to speed without re-reading the wh
 - **Display name:** Group Point
 - **Bundle ID (iOS):** `com.jmiklanek.groupplanner` (internal, never shown to users)
 - **Tagline:** "Find the date that works"
-- **Version:** **1.1.0+2** in pubspec — ready to build IPA + upload to TestFlight as v1.1.0
+- **Version:** **1.1.0+2** in pubspec — submitted to the public App Store as v1.1.0 (build 2), Waiting for Review (Jun 10 2026)
 - **Developer:** Jakub Miklánek, Slovakia, jakub.miklanek@gmail.com
 - **Apple Team ID:** `JZC8J8KMKN`
 
@@ -118,8 +118,9 @@ Git tags: `v1.0.0-tf1` (first TestFlight submission, snapshot before v1.1 paradi
 - ✅ v1.0.0 build 1 uploaded + submitted for Beta App Review (status unknown — check App Store Connect)
 - ✅ External Testing group "Beta testers" created
 - ✅ Public TestFlight link enabled
-- ✅ **v1.1.0 (build 2) built, uploaded, and submitted to TestFlight (Jun 4 2026)** — attached to Friends (internal) + Beta testers (external); external is in Beta App Review
-  - ⚠️ **objective_c pod (9.3.0) bug:** its arm64 slice ships with the iOS *Simulator* platform marker (platform 7), failing Transporter validation (err 409, then err 90208 minos mismatch). Permanent guard added to `ios/Podfile` post_install (`EXCLUDED_ARCHS[sdk=iphonesimulator*]=arm64`, commit c8663e6). If a future build still fails: patch the framework binary in the .xcarchive with `vtool -set-build-version ios 13.0 18.2 -replace`, re-sign with the Apple Distribution cert, re-export via `xcodebuild -exportArchive`, then upload. (minos 13.0 must match the framework Info.plist's MinimumOSVersion.)
+- ✅ **v1.1.0 (build 2) built, uploaded, and shipped to TestFlight (Jun 4 2026)** — attached to Friends (internal) + Beta testers (external)
+- ✅ **v1.1.0 (build 2) SUBMITTED to the public App Store (Jun 10 2026)** — status: Waiting for Review. First-ever public submission. Listing: Travel/Productivity, Free, all 175 regions, 4+, iPhone+iPad (Mac/Vision Pro disabled). Sign-in handled via "use Sign in with Apple" review note (no demo account). Listing copy saved at `docs/appstore_listing_v1.1.0.md`.
+  - ⚠️ **objective_c pod (9.3.0) device-build bug:** its arm64 slice ships with the iOS *Simulator* platform marker (platform 7), failing Transporter validation (err 409, then err 90208 minos mismatch). **The fix is a post-build patch, NOT a Podfile change.** (An `EXCLUDED_ARCHS[sdk=iphonesimulator*]=arm64` Podfile guard was tried in c8663e6 but REVERTED in e41cdcb — it breaks running on Apple Silicon simulators and didn't fix the device bug.) **To fix a failing upload:** in the built `.xcarchive`, patch the framework binary with `vtool -set-build-version ios 13.0 18.2 -replace -output <bin> <bin>` (minos 13.0 must match the framework Info.plist MinimumOSVersion; check the Flutter.framework for the right sdk), re-sign with `codesign --force --sign "Apple Distribution: ..."`, re-export via `xcodebuild -exportArchive`, then upload.
 
 ## Public URLs
 
@@ -169,10 +170,11 @@ git add docs/ && git commit -m "..." && git push
 
 ## Current sprint focus
 
-**v1.1.0 (build 2) is in Beta App Review as of Jun 4 2026.** Next steps:
-1. Wait for Apple email approving external Beta review (hours–1 day). Internal "Friends" testers can already install.
-2. Once approved, confirm Beta testers + public TestFlight link are serving 1.1.0 (2).
-3. Tester "What to Test" notes saved at `docs/testflight_notes_v1.1.0.md`.
+**v1.1.0 (build 2) SUBMITTED to the public App Store — Waiting for Review (Jun 10 2026).** Next steps:
+1. Wait for Apple review email (first full review usually 24–48h). Watch for rejection reasons (most likely: login access — mitigated via Sign in with Apple note; or metadata).
+2. If approved → app goes live (or set to manual release in App Store Connect if you want to control timing).
+3. ⚠️ **Cleanup pending:** screenshot demo data was injected into PRODUCTION Firestore via REST (fake groups Summer in Spain / Ski Weekend / Italy Food Tour, fake members Anna/Marek/Lucia/Tomáš + their availability in "Dasty's Road Trip"). Visible only to the owner account. Remove when no longer needed for re-screenshots.
+4. Tester "What to Test" notes: `docs/testflight_notes_v1.1.0.md`. Listing copy: `docs/appstore_listing_v1.1.0.md`. Screenshots: `~/Desktop/GroupPoint_AppStore_Screenshots*` (iPhone 6.9"/6.5" + iPad 13").
 
 Then back to the build plan (Week 5: Availability tab polish → Week 6: Profile → Week 7: design pass).
 
