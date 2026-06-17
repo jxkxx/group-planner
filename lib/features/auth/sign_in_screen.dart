@@ -1,12 +1,8 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'email_sign_in_screen.dart';
 
 class SignInScreen extends ConsumerWidget {
@@ -33,85 +29,24 @@ class SignInScreen extends ConsumerWidget {
     }
   }
 
-  /// Generates a cryptographically secure random nonce.
-  String _generateNonce([int length = 32]) {
-    const charset =
-        '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._';
-    final random = Random.secure();
-    return List.generate(length, (_) => charset[random.nextInt(charset.length)])
-        .join();
-  }
-
-  String _sha256ofString(String input) =>
-      sha256.convert(utf8.encode(input)).toString();
-
-  /// Decodes a JWT payload (middle segment) without verifying the signature.
-  Map<String, dynamic> _decodeJwtPayload(String token) {
-    final parts = token.split('.');
-    if (parts.length != 3) return {'_error': 'not a JWT (parts=${parts.length})'};
-    var p = parts[1].replaceAll('-', '+').replaceAll('_', '/');
-    while (p.length % 4 != 0) {
-      p += '=';
-    }
-    return json.decode(utf8.decode(base64.decode(p))) as Map<String, dynamic>;
-  }
-
-  // TEMP DIAGNOSTIC build: surfaces the real Apple token claims + Firebase error
-  // on screen so we can see exactly why sign-in is rejected. Revert after.
   Future<void> _signInWithApple(BuildContext context) async {
-    final diag = StringBuffer();
     try {
-      final rawNonce = _generateNonce();
-      final hashedNonce = _sha256ofString(rawNonce);
-      final appleCredential = await SignInWithApple.getAppleIDCredential(
-        scopes: [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
-        nonce: hashedNonce,
-      );
-      final idToken = appleCredential.identityToken;
-      diag.writeln('idToken present: ${idToken != null}');
-      if (idToken != null) {
-        final c = _decodeJwtPayload(idToken);
-        diag.writeln('aud: ${c['aud']}');
-        diag.writeln('iss: ${c['iss']}');
-        diag.writeln('token.nonce: ${c['nonce']}');
-        diag.writeln('our hashed : $hashedNonce');
-        diag.writeln('nonce match: ${c['nonce'] == hashedNonce}');
-        diag.writeln('exp: ${c['exp']}  now: '
-            '${DateTime.now().millisecondsSinceEpoch ~/ 1000}');
-      }
-      try {
-        final oauthCredential = OAuthProvider('apple.com').credential(
-          idToken: idToken,
-          rawNonce: rawNonce,
-        );
-        final result =
-            await FirebaseAuth.instance.signInWithCredential(oauthCredential);
-        await _saveUserProfile(result.user);
-        diag.writeln('FIREBASE: SUCCESS');
-      } catch (e) {
-        diag.writeln('FIREBASE ERROR: $e');
-      }
+      // Use firebase_auth's managed Apple provider flow. It runs the native
+      // Sign in with Apple and forwards the nonce to Firebase internally —
+      // avoiding the manual-credential nonce bug that rejected valid tokens
+      // with "invalid-credential / Invalid OAuth response from apple.com".
+      final provider = AppleAuthProvider()
+        ..addScope('email')
+        ..addScope('name');
+      final result =
+          await FirebaseAuth.instance.signInWithProvider(provider);
+      await _saveUserProfile(result.user);
     } catch (e) {
-      diag.writeln('APPLE ERROR: $e');
-    }
-    debugPrint('=== APPLE DIAG START ===\n${diag.toString()}\n=== APPLE DIAG END ===');
-    if (context.mounted) {
-      await showDialog<void>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Apple Sign-In Diagnostic'),
-          content: SingleChildScrollView(child: SelectableText(diag.toString())),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Apple sign in failed: $e')),
+        );
+      }
     }
   }
 
