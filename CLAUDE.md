@@ -9,7 +9,7 @@ Auto-loaded at session start. Keeps Claude up to speed without re-reading the wh
 - **Display name:** Group Point
 - **Bundle ID (iOS):** `com.jmiklanek.groupplanner` (internal, never shown to users)
 - **Tagline:** "Find the date that works"
-- **Version:** **1.1.0+2** in pubspec — submitted to the public App Store as v1.1.0 (build 2), Waiting for Review (Jun 10 2026)
+- **Version:** **1.1.0+7** in pubspec — build 7 fixes Sign in with Apple; resubmitted to App Store after the build-2 rejection
 - **Developer:** Jakub Miklánek, Slovakia, jakub.miklanek@gmail.com
 - **Apple Team ID:** `JZC8J8KMKN`
 
@@ -119,7 +119,14 @@ Git tags: `v1.0.0-tf1` (first TestFlight submission, snapshot before v1.1 paradi
 - ✅ External Testing group "Beta testers" created
 - ✅ Public TestFlight link enabled
 - ✅ **v1.1.0 (build 2) built, uploaded, and shipped to TestFlight (Jun 4 2026)** — attached to Friends (internal) + Beta testers (external)
-- ✅ **v1.1.0 (build 2) SUBMITTED to the public App Store (Jun 10 2026)** — status: Waiting for Review. First-ever public submission. Listing: Travel/Productivity, Free, all 175 regions, 4+, iPhone+iPad (Mac/Vision Pro disabled). Sign-in handled via "use Sign in with Apple" review note (no demo account). Listing copy saved at `docs/appstore_listing_v1.1.0.md`.
+- ✅ **v1.1.0 SUBMITTED to public App Store (Jun 10 2026)** — First-ever public submission. Listing: Travel/Productivity, Free, all 175 regions, 4+, iPhone+iPad (Mac/Vision Pro disabled). Listing copy: `docs/appstore_listing_v1.1.0.md`.
+- ❌ **REJECTED (Jun 15 2026, build 2):** (1) Sign in with Apple errored; (2) needed a demo account. Both fixed → **resubmitted with build 7**.
+- 🔑 **Demo account for App Review:** `appreview@grouppoint.app` / `GroupPoint2026!` (email/password, Firebase uid xkCjf3z90RNyRAIB90SR7NY78CY2). Pre-populated with group "Ski Trip 2026" (doc id `demo_weekend_trip`) + fake members + availability. Keep this account for future reviews.
+- ⚠️ **Sign in with Apple was broken in 5 stacked ways** (each fixed in sequence; see [[Apple Sign-In debugging]]):
+  1. **Missing entitlement** → `AuthorizationError 1000` on device. Fixed: added `ios/Runner/Runner.entitlements` (`com.apple.developer.applesignin`) + `CODE_SIGN_ENTITLEMENTS` in all 3 Runner build configs.
+  2. **Apple provider not enabled in Firebase** → `operation-not-allowed`. Fixed: enabled `apple.com` defaultSupportedIdpConfig (native iOS: `appleSignInConfig.bundleIds=[com.jmiklanek.groupplanner]`, no clientId).
+  3. **iOS app missing Apple Team ID in Firebase** → set teamId=JZC8J8KMKN on the Firebase iOS app (via Firebase Mgmt API). (Necessary but not sufficient.)
+  4. **firebase_auth 6.4.0 manual-credential bug** → `OAuthProvider('apple.com').credential(rawNonce:)` does NOT forward the raw nonce to `signInWithIdp`, so the backend rejects valid tokens with `invalid-credential / Invalid OAuth response from apple.com`. PROVEN by a diagnostic build: a direct `signInWithIdp` REST call WITH `nonce=<rawNonce>` in postBody returned HTTP 200 with the identical token. **Fix: use `FirebaseAuth.signInWithProvider(AppleAuthProvider()..addScope('email')..addScope('name'))`** (managed native flow forwards the nonce internally). See `sign_in_screen.dart`. Verified working on device in build 7.
   - ⚠️ **objective_c pod (9.3.0) device-build bug:** its arm64 slice ships with the iOS *Simulator* platform marker (platform 7), failing Transporter validation (err 409, then err 90208 minos mismatch). **The fix is a post-build patch, NOT a Podfile change.** (An `EXCLUDED_ARCHS[sdk=iphonesimulator*]=arm64` Podfile guard was tried in c8663e6 but REVERTED in e41cdcb — it breaks running on Apple Silicon simulators and didn't fix the device bug.) **To fix a failing upload:** in the built `.xcarchive`, patch the framework binary with `vtool -set-build-version ios 13.0 18.2 -replace -output <bin> <bin>` (minos 13.0 must match the framework Info.plist MinimumOSVersion; check the Flutter.framework for the right sdk), re-sign with `codesign --force --sign "Apple Distribution: ..."`, re-export via `xcodebuild -exportArchive`, then upload.
 
 ## Public URLs
